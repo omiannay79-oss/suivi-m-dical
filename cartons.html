@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi des Cartons — Effectif</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a1a33;            /* bleu marine US Créteil */
+  --bg2:#0d2142;
+  --surface:#102a52;
+  --surface2:#15366a;
+  --line:#1f4480;
+  --line2:#2d599e;
+  --pitch:#3d8bff;         /* accent interface : bleu club */
+  --pitch-d:#2667c8;
+  --accent:#ffcc1f;        /* jaune club (titres/onglet actif) */
+  --accent-d:#d9a800;
+  --txt:#eef4ff;
+  --muted:#9fb6d8;
+  --muted2:#6c87b0;
+  --yellow:#ffce1f;        /* carton jaune (sémantique) */
+  --yellow-d:#caa414;
+  --red:#ff4242;           /* carton rouge (sémantique) */
+  --red-d:#c52727;
+  --radius:14px;
+  --shadow:0 18px 40px -18px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'Hanken Grotesk',sans-serif;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(255,204,31,.07), transparent 60%),
+    radial-gradient(900px 500px at 0% 100%, rgba(61,139,255,.10), transparent 55%),
+    var(--bg);
+  color:var(--txt);
+  -webkit-font-smoothing:antialiased;
+  line-height:1.45;
+  min-height:100vh;
+}
+/* subtle pitch lines */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px) 0 0/72px 72px,
+    linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px) 0 0/72px 72px;
+}
+.wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:0 18px 80px}
+
+/* ---------- HEADER ---------- */
+header.topbar{
+  position:sticky;top:0;z-index:40;
+  background:rgba(10,26,51,.88);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-inner{max-width:1180px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;cursor:pointer}
+.crest{
+  width:46px;height:46px;border-radius:11px;flex:none;
+  background:#fff;overflow:hidden;
+  display:grid;place-items:center;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.25), 0 8px 18px -6px rgba(255,204,31,.4);
+}
+.crest img{width:100%;height:100%;object-fit:contain;padding:2px}
+.brand h1{font-family:'Oswald';font-weight:600;font-size:19px;letter-spacing:.5px;line-height:1;text-transform:uppercase}
+.brand .sub{font-size:11.5px;color:var(--muted);letter-spacing:.4px;margin-top:3px}
+.spacer{flex:1}
+.btn{
+  font-family:'Hanken Grotesk';font-weight:700;font-size:13.5px;
+  border:1px solid var(--line2);background:var(--surface2);color:var(--txt);
+  padding:9px 14px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;
+  transition:.15s;white-space:nowrap;
+}
+.btn:hover{border-color:var(--pitch);background:#21342a;transform:translateY(-1px)}
+.btn.primary{background:linear-gradient(150deg,var(--pitch),var(--pitch-d));border-color:transparent;color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;border-color:var(--line)}
+.btn.sm{padding:6px 10px;font-size:12px;border-radius:8px}
+.btn.danger{border-color:var(--red-d);color:#ffb3b3}
+.btn.danger:hover{background:rgba(255,66,66,.12);border-color:var(--red)}
+
+/* ---------- NAV ---------- */
+nav.tabs{display:flex;gap:6px;margin:22px 0 18px;flex-wrap:wrap}
+.tab{
+  font-family:'Oswald';text-transform:uppercase;letter-spacing:.6px;font-weight:500;font-size:14px;
+  padding:9px 16px;border-radius:10px;cursor:pointer;color:var(--muted);border:1px solid transparent;
+  transition:.15s;display:flex;align-items:center;gap:8px;
+}
+.tab:hover{color:var(--txt);background:var(--surface)}
+.tab.active{color:var(--txt);background:var(--surface);border-color:var(--line2)}
+.tab .cnt{font-family:'Hanken Grotesk';font-weight:700;font-size:11px;background:var(--line2);color:var(--txt);padding:1px 7px;border-radius:20px;min-width:20px;text-align:center}
+.tab.active .cnt{background:var(--pitch);color:#fff}
+
+/* ---------- KPI ---------- */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px}
+.kpi{
+  background:linear-gradient(160deg,var(--surface),var(--bg2));
+  border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;position:relative;overflow:hidden;
+}
+.kpi .lab{font-size:11.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700}
+.kpi .val{font-family:'Oswald';font-weight:700;font-size:42px;line-height:1;margin-top:8px}
+.kpi .hint{font-size:11.5px;color:var(--muted2);margin-top:5px}
+.kpi.k-yellow .val{color:var(--yellow)}
+.kpi.k-red .val{color:var(--red)}
+.kpi.k-susp .val{color:#ff8a3d}
+.kpi .ic{position:absolute;right:14px;top:14px;width:30px;height:38px;border-radius:5px;opacity:.18}
+.kpi.k-yellow .ic{background:var(--yellow)}
+.kpi.k-red .ic{background:var(--red)}
+
+/* ---------- CARDS / PANELS ---------- */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:22px}
+.panel-h{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.panel-h h2{font-family:'Oswald';font-weight:600;text-transform:uppercase;letter-spacing:.7px;font-size:16px}
+.panel-h .desc{font-size:12px;color:var(--muted);font-weight:500}
+.panel-b{padding:6px 18px 18px}
+
+.section-title{font-family:'Oswald';text-transform:uppercase;letter-spacing:.8px;font-size:13px;color:var(--muted);margin:18px 0 10px;font-weight:600}
+
+/* ---------- TOOLBAR ---------- */
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.search{flex:1;min-width:200px;position:relative}
+.search input{
+  width:100%;background:var(--surface);border:1px solid var(--line);color:var(--txt);
+  padding:10px 14px 10px 38px;border-radius:10px;font-family:inherit;font-size:14px;
+}
+.search input:focus{outline:none;border-color:var(--pitch)}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);opacity:.5}
+select.filter{
+  background:var(--surface);border:1px solid var(--line);color:var(--txt);
+  padding:10px 12px;border-radius:10px;font-family:inherit;font-size:13.5px;cursor:pointer;
+}
+select.filter:focus{outline:none;border-color:var(--pitch)}
+
+/* ---------- PLAYER GRID ---------- */
+.squad{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:13px}
+.pcard{
+  background:linear-gradient(165deg,var(--surface),var(--bg2));
+  border:1px solid var(--line);border-radius:13px;padding:14px;cursor:pointer;position:relative;
+  transition:.16s;
+}
+.pcard:hover{border-color:var(--line2);transform:translateY(-2px);box-shadow:var(--shadow)}
+.pcard.suspended{border-color:var(--red-d)}
+.pcard.warn{border-color:var(--yellow-d)}
+.pcard-top{display:flex;align-items:center;gap:11px;margin-bottom:13px}
+.num{
+  width:40px;height:40px;border-radius:10px;flex:none;display:grid;place-items:center;
+  font-family:'Oswald';font-weight:700;font-size:19px;background:var(--surface2);border:1px solid var(--line2);
+}
+.pname{font-family:'Hanken Grotesk';font-weight:800;font-size:15.5px;line-height:1.1}
+.ppos{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:3px;font-weight:600}
+.posdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.pcard-stats{display:flex;gap:8px;align-items:center}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;font-weight:800;font-size:13px;
+  padding:5px 9px;border-radius:8px;background:var(--surface2);border:1px solid var(--line);
+}
+.chip .sq{width:11px;height:14px;border-radius:3px}
+.chip.y .sq{background:var(--yellow)}
+.chip.r .sq{background:var(--red)}
+.chip .num-window{color:var(--muted);font-weight:600;font-size:11px}
+.pcard .status-flag{
+  position:absolute;top:12px;right:12px;font-family:'Oswald';font-size:10.5px;letter-spacing:.5px;
+  text-transform:uppercase;font-weight:600;padding:3px 8px;border-radius:6px;
+}
+.flag-susp{background:rgba(255,66,66,.16);color:#ff7a7a;border:1px solid var(--red-d)}
+.flag-warn{background:rgba(255,206,31,.14);color:var(--yellow);border:1px solid var(--yellow-d)}
+.window-bar{margin-top:11px;display:flex;gap:4px;align-items:center}
+.wdot{width:100%;height:5px;border-radius:3px;background:var(--line)}
+.wdot.on{background:var(--yellow)}
+.window-txt{font-size:11px;color:var(--muted);margin-top:6px}
+
+/* ---------- TABLE ---------- */
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{text-align:left;font-family:'Oswald';text-transform:uppercase;letter-spacing:.5px;font-size:11.5px;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line)}
+.tbl td{padding:11px 12px;border-bottom:1px solid var(--line)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(255,255,255,.015)}
+.cardpill{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:12px;padding:3px 9px;border-radius:7px}
+.cardpill.y{background:rgba(255,206,31,.13);color:var(--yellow)}
+.cardpill.r{background:rgba(255,66,66,.13);color:#ff7a7a}
+.cardpill .sq{width:10px;height:13px;border-radius:2px}
+.cardpill.y .sq{background:var(--yellow)}
+.cardpill.r .sq{background:var(--red)}
+
+/* suspension status badges */
+.badge{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:11.5px;padding:4px 9px;border-radius:7px;text-transform:uppercase;letter-spacing:.4px;font-family:'Oswald'}
+.badge.todo{background:rgba(255,138,61,.16);color:#ffa05c;border:1px solid #8a4f24}
+.badge.done{background:rgba(39,163,90,.16);color:#5ed28c;border:1px solid #1f9c5d}
+.badge.pending{background:rgba(255,66,66,.13);color:#ff8a8a;border:1px solid var(--red-d)}
+.badge.ok{background:rgba(142,160,150,.12);color:var(--muted);border:1px solid var(--line2)}
+
+/* ---------- EMPTY ---------- */
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty .big{font-family:'Oswald';font-size:18px;text-transform:uppercase;letter-spacing:.6px;color:var(--txt);margin-bottom:6px}
+
+/* ---------- MODAL ---------- */
+.overlay{position:fixed;inset:0;background:rgba(4,8,6,.7);backdrop-filter:blur(4px);z-index:80;display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--line2);border-radius:16px;width:100%;max-width:560px;box-shadow:var(--shadow);animation:pop .18s ease}
+@keyframes pop{from{transform:translateY(12px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+.modal-h{display:flex;align-items:center;padding:17px 20px;border-bottom:1px solid var(--line)}
+.modal-h h3{font-family:'Oswald';text-transform:uppercase;letter-spacing:.6px;font-size:17px;font-weight:600}
+.modal-h .x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:22px;line-height:1;padding:4px 8px;border-radius:8px}
+.modal-h .x:hover{background:var(--surface2);color:var(--txt)}
+.modal-b{padding:20px}
+.modal-f{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+.fld{margin-bottom:15px}
+.fld label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:6px}
+.fld input,.fld select,.fld textarea{
+  width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--txt);
+  padding:10px 12px;border-radius:9px;font-family:inherit;font-size:14px;
+}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--pitch)}
+.fld textarea{resize:vertical;min-height:64px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.type-pick{display:flex;gap:10px}
+.type-opt{
+  flex:1;border:1.5px solid var(--line2);border-radius:10px;padding:14px;cursor:pointer;text-align:center;
+  font-weight:800;display:flex;flex-direction:column;align-items:center;gap:8px;transition:.14s;
+}
+.type-opt .sq{width:26px;height:34px;border-radius:5px}
+.type-opt.y .sq{background:var(--yellow)}
+.type-opt.r .sq{background:var(--red)}
+.type-opt:hover{background:var(--surface2)}
+.type-opt.sel.y{border-color:var(--yellow);background:rgba(255,206,31,.08)}
+.type-opt.sel.r{border-color:var(--red);background:rgba(255,66,66,.08)}
+
+/* player detail */
+.detail-head{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.detail-head .num{width:54px;height:54px;font-size:24px}
+.detail-head h3{font-family:'Oswald';font-size:24px;font-weight:600;letter-spacing:.4px;text-transform:none}
+.mini-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.mini{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+.mini .v{font-family:'Oswald';font-size:26px;font-weight:700;line-height:1}
+.mini .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-top:5px;font-weight:700}
+
+.note{font-size:12.5px;color:var(--muted);line-height:1.5}
+.divider{height:1px;background:var(--line);margin:16px 0}
+.foot{text-align:center;color:var(--muted2);font-size:12px;margin-top:30px;line-height:1.7}
+
+@media(max-width:760px){
+  .kpis{grid-template-columns:1fr 1fr}
+  .row2{grid-template-columns:1fr}
+  .brand h1{font-size:16px}
+}
+@media print{
+  body{background:#fff;color:#000}
+  header.topbar,nav.tabs,.toolbar,.btn,.overlay{display:none !important}
+  .panel{border-color:#ccc}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand" onclick="openClubName()">
+      <div class="crest" id="crestTxt"><img src="data:image/jpeg;base64,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" alt="US Créteil"></div>
+      <div>
+        <h1 id="clubTitle">US Créteil Football</h1>
+        <div class="sub">Suivi disciplinaire · Cartons & suspensions</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);margin-right:4px">
+      <span id="syncDot" style="width:9px;height:9px;border-radius:50%;background:#3d8bff" title="Chargement…"></span>
+      <span id="syncLabel">Chargement…</span>
+    </div>
+    <button class="btn ghost" onclick="refreshFromCloud()" title="Recharger la base commune">↻ Actualiser</button>
+    <button class="btn primary" onclick="openCardModal()">＋ Carton</button>
+    <button class="btn ghost" onclick="exportData()" title="Sauvegarder vos données dans un fichier">⭳ Exporter</button>
+    <button class="btn ghost" onclick="document.getElementById('importFile').click()" title="Restaurer depuis un fichier">⭱ Importer</button>
+    <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(event)">
+  </div>
+</header>
+
+<div class="wrap">
+
+  <nav class="tabs" id="tabs">
+    <div class="tab active" data-tab="dash" onclick="switchTab('dash')">⚑ Tableau de bord</div>
+    <div class="tab" data-tab="squad" onclick="switchTab('squad')">⚽ Effectif <span class="cnt" id="tabSquadCnt">0</span></div>
+    <div class="tab" data-tab="susp" onclick="switchTab('susp')">⛔ Suspensions <span class="cnt" id="tabSuspCnt">0</span></div>
+    <div class="tab" data-tab="hist" onclick="switchTab('hist')">🗂 Historique <span class="cnt" id="tabHistCnt">0</span></div>
+  </nav>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="view-dash">
+    <div class="kpis">
+      <div class="kpi k-yellow"><div class="ic"></div><div class="lab">Cartons jaunes</div><div class="val" id="kpiY">0</div><div class="hint" id="kpiYh">cumul saison</div></div>
+      <div class="kpi k-red"><div class="ic"></div><div class="lab">Cartons rouges</div><div class="val" id="kpiR">0</div><div class="hint" id="kpiRh">cumul saison</div></div>
+      <div class="kpi k-susp"><div class="lab">Suspensions à purger</div><div class="val" id="kpiS">0</div><div class="hint" id="kpiSh">0 match(s) au total</div></div>
+      <div class="kpi"><div class="lab">Joueurs à risque</div><div class="val" id="kpiW">0</div><div class="hint">2 jaunes dans la période</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h2>⛔ Suspensions en cours</h2><span class="desc">Joueurs indisponibles pour le prochain match</span></div>
+      <div class="panel-b" id="dashSusp"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h2>⚠️ Joueurs à surveiller</h2><span class="desc">Un carton jaune avant suspension (période ouverte par le 1ᵉʳ carton)</span></div>
+      <div class="panel-b" id="dashWarn"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h2>🕒 Derniers cartons</h2></div>
+      <div class="panel-b" id="dashRecent"></div>
+    </div>
+  </section>
+
+  <!-- ============ SQUAD ============ -->
+  <section id="view-squad" style="display:none">
+    <div class="toolbar">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="squadSearch" placeholder="Rechercher un joueur, un numéro…" oninput="renderSquad()">
+      </div>
+      <select class="filter" id="squadPos" onchange="renderSquad()">
+        <option value="">Tous les postes</option>
+        <option value="Gardien">Gardien</option>
+        <option value="Défenseur">Défenseur</option>
+        <option value="Milieu">Milieu</option>
+        <option value="Attaquant">Attaquant</option>
+      </select>
+      <select class="filter" id="squadSort" onchange="renderSquad()">
+        <option value="num">Trier · Numéro</option>
+        <option value="name">Trier · Nom</option>
+        <option value="yellow">Trier · Jaunes</option>
+        <option value="risk">Trier · Risque</option>
+      </select>
+      <button class="btn" onclick="openPlayerModal()">＋ Joueur</button>
+    </div>
+    <div class="squad" id="squadGrid"></div>
+  </section>
+
+  <!-- ============ SUSPENSIONS ============ -->
+  <section id="view-susp" style="display:none">
+    <div class="toolbar">
+      <select class="filter" id="suspFilter" onchange="renderSusp()">
+        <option value="todo">À purger</option>
+        <option value="all">Toutes</option>
+        <option value="done">Purgées</option>
+      </select>
+      <div class="spacer"></div>
+      <button class="btn ghost" onclick="window.print()">🖨 Imprimer</button>
+    </div>
+    <div class="panel">
+      <div class="panel-b" style="padding:0">
+        <table class="tbl" id="suspTable"></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HISTORY ============ -->
+  <section id="view-hist" style="display:none">
+    <div class="toolbar">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="histSearch" placeholder="Rechercher dans l'historique…" oninput="renderHist()">
+      </div>
+      <select class="filter" id="histType" onchange="renderHist()">
+        <option value="">Tous les cartons</option>
+        <option value="jaune">Jaunes</option>
+        <option value="rouge">Rouges</option>
+      </select>
+    </div>
+    <div class="panel">
+      <div class="panel-b" style="padding:0">
+        <table class="tbl" id="histTable"></table>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    Données enregistrées automatiquement sur cet appareil (navigateur). Pensez à <b>Exporter</b> régulièrement pour conserver une sauvegarde.<br>
+    Règles appliquées : 3 cartons jaunes dans une période de 3 mois (comptée à partir de la date d'effet du 1ᵉʳ carton) → 1 match · Carton rouge → 1 match automatique (en attente de la commission).
+  </div>
+</div>
+
+<!-- ============ MODALS ============ -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<script>
+"use strict";
+/* ====================== CONSTANTES RÈGLES ====================== */
+const SEUIL_JAUNES = 3;       // nb de jaunes déclenchant une suspension
+const FENETRE_MOIS = 3;       // fenêtre glissante en mois
+const SUSP_JAUNE = 1;         // matchs de suspension sur seuil jaunes
+const SUSP_ROUGE = 1;         // matchs automatiques sur rouge
+
+const POSTES = {
+  "Gardien":"#3da5ff","Défenseur":"#5ed28c","Milieu":"#ffce1f","Attaquant":"#ff6b4a"
+};
+const STORE_KEY = "suiviCartons.v1";
+
+/* ====================== ÉTAT ====================== */
+let state = { club:"US Créteil Football", players:[], cards:[], overrides:{} };
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+function seedPlayers(){
+  // Effectif de 27 joueurs — noms modifiables
+  const layout = [
+    {n:1,p:"Gardien"},{n:16,p:"Gardien"},{n:30,p:"Gardien"},
+    {n:2,p:"Défenseur"},{n:3,p:"Défenseur"},{n:4,p:"Défenseur"},{n:5,p:"Défenseur"},
+    {n:12,p:"Défenseur"},{n:15,p:"Défenseur"},{n:21,p:"Défenseur"},{n:24,p:"Défenseur"},
+    {n:6,p:"Milieu"},{n:8,p:"Milieu"},{n:10,p:"Milieu"},{n:14,p:"Milieu"},
+    {n:18,p:"Milieu"},{n:20,p:"Milieu"},{n:23,p:"Milieu"},{n:26,p:"Milieu"},
+    {n:7,p:"Attaquant"},{n:9,p:"Attaquant"},{n:11,p:"Attaquant"},{n:17,p:"Attaquant"},
+    {n:19,p:"Attaquant"},{n:22,p:"Attaquant"},{n:25,p:"Attaquant"},{n:27,p:"Attaquant"}
+  ];
+  return layout.map((x,i)=>({id:uid(),num:x.n,name:"Joueur "+(i+1),pos:x.p}));
+}
+
+/* ============ STOCKAGE PARTAGÉ (Netlify Blobs via /api/data) ============
+   Base commune à tous, avec cache localStorage en secours hors-ligne.
+   Enregistrement « dernier qui sauvegarde gagne » : cliquez ↻ Actualiser
+   avant de saisir si plusieurs personnes éditent en même temps.
+*/
+const CLOUD_KEY = "cartons";          // clé du Blob (distincte du suivi médical)
+const API = "/api/data";
+let cloudOK = false;
+let saveTimer = null;
+
+function accessHeaders(){
+  const c = localStorage.getItem('teamCode');
+  return c ? {'x-access-code': c} : {};
+}
+async function apiFetch(opts){
+  let r = await fetch(API+"?key="+CLOUD_KEY, opts);
+  if(r.status===403){
+    const code = prompt("Code d'accès de l'équipe :");
+    if(code){ localStorage.setItem('teamCode', code);
+      r = await fetch(API+"?key="+CLOUD_KEY, {...opts, headers:{...(opts&&opts.headers||{}), ...accessHeaders()}}); }
+  }
+  return r;
+}
+function setSync(s){
+  const el=document.getElementById('syncDot'); if(!el) return;
+  const map={synced:['#3ddb8a','Synchronisé'],syncing:['#ffce1f','Enregistrement…'],error:['#ff4242','Hors-ligne (cet appareil)'],loading:['#3d8bff','Chargement…']};
+  const [c,t]=map[s]||map.error; el.style.background=c; el.title=t;
+  const lab=document.getElementById('syncLabel'); if(lab) lab.textContent=t;
+}
+
+async function load(){
+  setSync('loading');
+  try{
+    const r = await apiFetch({headers:{...accessHeaders()}});
+    if(!r.ok) throw new Error('http');
+    const data = await r.json();
+    if(data && data.players){ state = data; }
+    else { state.players = seedPlayers(); state.cards = []; state.overrides = {}; }
+    cloudOK = true; setSync('synced');
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    if(!data || !data.players) pushCloud();
+  }catch(e){
+    cloudOK = false; setSync('error');
+    try{
+      const raw = localStorage.getItem(STORE_KEY);
+      if(raw){ state = JSON.parse(raw); } else state.players = seedPlayers();
+    }catch(_){ state.players = seedPlayers(); }
+  }
+  if(!state.overrides) state.overrides = {};
+}
+
+async function pushCloud(){
+  if(!cloudOK) return;
+  setSync('syncing');
+  try{
+    const r = await apiFetch({method:'POST',headers:{'Content-Type':'application/json',...accessHeaders()},body:JSON.stringify(state)});
+    if(!r.ok) throw new Error('http');
+    setSync('synced');
+  }catch(e){ cloudOK=false; setSync('error'); }
+}
+
+function save(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(pushCloud, 350);
+}
+
+async function refreshFromCloud(){
+  if(!cloudOK){ await load(); renderAll(); return; }
+  setSync('loading');
+  try{
+    const r = await apiFetch({headers:{...accessHeaders()}});
+    if(!r.ok) throw new Error('http');
+    const data = await r.json();
+    if(data && data.players){ state=data; localStorage.setItem(STORE_KEY,JSON.stringify(state)); }
+    setSync('synced'); renderAll();
+  }catch(e){ cloudOK=false; setSync('error'); }
+}
+window.addEventListener('focus', ()=>{ if(cloudOK) refreshFromCloud(); });
+
+/* ====================== DATES ====================== */
+function parseD(s){ return new Date(s+"T00:00:00"); }
+function monthsBefore(date, n){ const d=new Date(date); d.setMonth(d.getMonth()-n); return d; }
+function monthsAfter(date, n){ const d=new Date(date); d.setMonth(d.getMonth()+n); return d; }
+function fmtD(s){ const d=parseD(s); return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'}); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+/* ====================== ANALYSE / SUSPENSIONS ====================== */
+function analyze(){
+  const today = new Date();
+  const todayCutoff = monthsBefore(today, FENETRE_MOIS);
+  const suspensions = [];
+  const perPlayer = {};
+
+  for(const pl of state.players){
+    const myCards = state.cards.filter(c=>c.playerId===pl.id);
+    const yellows = myCards.filter(c=>c.type==='jaune').sort((a,b)=>parseD(a.date)-parseD(b.date));
+    const reds = myCards.filter(c=>c.type==='rouge').sort((a,b)=>parseD(a.date)-parseD(b.date));
+
+    // --- jaunes : fenêtre de 3 mois ouverte par le 1er carton (date d'effet) ---
+    // Le 1er jaune ouvre une période de FENETRE_MOIS mois. Les jaunes tombant
+    // dans cette période s'accumulent ; au SEUIL_JAUNES e -> suspension, puis le
+    // compteur repart à zéro. Si la période s'écoule sans atteindre le seuil,
+    // le carton suivant ouvre une nouvelle période.
+    let group = [];           // cartons de la période en cours
+    let anchor = null;        // date d'effet (1er carton de la période)
+    for(const c of yellows){
+      const cd = parseD(c.date);
+      if(anchor === null){
+        anchor = cd; group = [c];
+      }else{
+        const wEnd = monthsAfter(anchor, FENETRE_MOIS);
+        if(cd <= wEnd){ group.push(c); }       // dans la période -> on accumule
+        else { anchor = cd; group = [c]; }      // période expirée -> nouveau départ
+      }
+      if(group.length >= SEUIL_JAUNES){
+        const id = 'Y-'+pl.id+'-'+c.id;
+        const ov = state.overrides[id] || {};
+        suspensions.push({
+          id, playerId:pl.id, type:'jaune', baseMatches:SUSP_JAUNE,
+          extraMatches: ov.extra||0, served: !!ov.served,
+          triggerDate: c.date,                 // suspension encourue à la date du 3e carton
+          windowStart: group[0].date,          // date d'effet (1er carton de la période)
+          cardIds: group.map(x=>x.id),
+          note: ov.note||'', committeePending:false
+        });
+        anchor = null; group = []; // compteur consommé, on repart à zéro
+      }
+    }
+    // période en cours aujourd'hui : compte uniquement si elle n'est pas expirée
+    let activeNow = 0, windowStartNow = null, windowEndNow = null;
+    if(anchor !== null && group.length){
+      const wEnd = monthsAfter(anchor, FENETRE_MOIS);
+      if(new Date() <= wEnd){
+        activeNow = group.length;
+        windowStartNow = group[0].date;
+        windowEndNow = wEnd;
+      }
+    }
+
+    // --- rouges ---
+    for(const r of reds){
+      const id = 'R-'+r.id;
+      const ov = state.overrides[id] || {};
+      suspensions.push({
+        id, playerId:pl.id, type:'rouge', baseMatches:SUSP_ROUGE,
+        extraMatches: ov.extra||0, served: !!ov.served,
+        triggerDate: r.date, cardIds:[r.id],
+        note: ov.note||'', committeePending: !ov.committeeDone
+      });
+    }
+
+    perPlayer[pl.id] = {
+      yellowsTotal: yellows.length,
+      redsTotal: reds.length,
+      activeWindow: activeNow,
+      windowEnd: windowEndNow,
+      windowStart: windowStartNow,
+      openSusp: 0, totalSuspMatches:0
+    };
+  }
+
+  for(const s of suspensions){
+    if(!s.served){
+      perPlayer[s.playerId].openSusp++;
+      perPlayer[s.playerId].totalSuspMatches += (s.baseMatches + s.extraMatches);
+    }
+  }
+  return { suspensions, perPlayer };
+}
+
+function playerById(id){ return state.players.find(p=>p.id===id); }
+
+/* ====================== RENDU GLOBAL ====================== */
+let currentTab = 'dash';
+function renderAll(){
+  const a = analyze();
+  // KPIs
+  const totY = state.cards.filter(c=>c.type==='jaune').length;
+  const totR = state.cards.filter(c=>c.type==='rouge').length;
+  const openSusp = a.suspensions.filter(s=>!s.served);
+  const totMatches = openSusp.reduce((n,s)=>n+s.baseMatches+s.extraMatches,0);
+  const atRisk = Object.values(a.perPlayer).filter(p=>p.activeWindow===SEUIL_JAUNES-1).length;
+
+  document.getElementById('kpiY').textContent = totY;
+  document.getElementById('kpiR').textContent = totR;
+  document.getElementById('kpiS').textContent = openSusp.length;
+  document.getElementById('kpiSh').textContent = totMatches+" match(s) au total";
+  document.getElementById('kpiW').textContent = atRisk;
+
+  // tab counters
+  document.getElementById('tabSquadCnt').textContent = state.players.length;
+  document.getElementById('tabSuspCnt').textContent = openSusp.length;
+  document.getElementById('tabHistCnt').textContent = state.cards.length;
+
+  document.getElementById('clubTitle').textContent = state.club;
+
+  renderDash(a);
+  renderSquad(a);
+  renderSusp(a);
+  renderHist();
+}
+
+/* ====================== DASHBOARD ====================== */
+function renderDash(a){
+  a = a || analyze();
+  // suspensions
+  const open = a.suspensions.filter(s=>!s.served)
+    .sort((x,y)=>parseD(y.triggerDate)-parseD(x.triggerDate));
+  const elS = document.getElementById('dashSusp');
+  if(open.length===0){
+    elS.innerHTML = '<div class="empty"><div class="big">Aucune suspension en cours</div>Tout l\'effectif est disponible.</div>';
+  }else{
+    elS.innerHTML = '<table class="tbl"><thead><tr><th>Joueur</th><th>Motif</th><th>Matchs</th><th>Depuis</th><th>Statut</th><th></th></tr></thead><tbody>'+
+      open.map(s=>suspRow(s)).join('')+'</tbody></table>';
+  }
+  // warnings
+  const warns = state.players.filter(p=>a.perPlayer[p.id].activeWindow===SEUIL_JAUNES-1);
+  const elW = document.getElementById('dashWarn');
+  if(warns.length===0){
+    elW.innerHTML = '<div class="empty">Aucun joueur en zone d\'alerte.</div>';
+  }else{
+    elW.innerHTML = '<table class="tbl"><thead><tr><th>Joueur</th><th>Poste</th><th>Jaunes dans la période</th><th>Période en cours</th><th></th></tr></thead><tbody>'+
+      warns.map(p=>{
+        const sp = a.perPlayer[p.id];
+        const periode = sp.windowStart ? `${fmtD(sp.windowStart)} → ${sp.windowEnd.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'})}` : '—';
+        return `<tr>
+          <td><b>#${p.num} ${esc(p.name)}</b></td>
+          <td><span class="posdot" style="background:${POSTES[p.pos]}"></span>${p.pos}</td>
+          <td><span class="cardpill y"><span class="sq"></span>${sp.activeWindow} / ${SEUIL_JAUNES}</span> <span style="color:var(--muted);font-size:12px">— 1 avant suspension</span></td>
+          <td style="color:var(--muted);font-size:12.5px">${periode}</td>
+          <td style="text-align:right"><button class="btn sm" onclick="openCardModal('${p.id}')">＋ Carton</button></td>
+        </tr>`;
+      }).join('')+'</tbody></table>';
+  }
+  // recent
+  const recent = [...state.cards].sort((x,y)=>parseD(y.date)-parseD(x.date)).slice(0,8);
+  const elR = document.getElementById('dashRecent');
+  if(recent.length===0){
+    elR.innerHTML = '<div class="empty"><div class="big">Aucun carton enregistré</div>Cliquez sur « ＋ Carton » pour commencer.</div>';
+  }else{
+    elR.innerHTML = '<table class="tbl"><thead><tr><th>Date</th><th>Joueur</th><th>Carton</th><th>Adversaire / Compétition</th></tr></thead><tbody>'+
+      recent.map(c=>{
+        const p = playerById(c.playerId);
+        return `<tr>
+          <td>${fmtD(c.date)}</td>
+          <td><b>#${p?p.num:'?'} ${p?esc(p.name):'—'}</b></td>
+          <td>${cardPill(c.type)}</td>
+          <td style="color:var(--muted)">${esc([c.opp,c.comp].filter(Boolean).join(' · '))||'—'}</td>
+        </tr>`;
+      }).join('')+'</tbody></table>';
+  }
+}
+
+function suspRow(s){
+  const p = playerById(s.playerId);
+  const total = s.baseMatches + s.extraMatches;
+  let status = s.type==='rouge' && s.committeePending
+    ? '<span class="badge pending">⏳ Commission</span>'
+    : '<span class="badge todo">À purger</span>';
+  const motif = s.type==='rouge'
+    ? 'Carton rouge'+(s.extraMatches?` (+${s.extraMatches} commission)`:'')
+    : `${SEUIL_JAUNES} jaunes · période dès le ${fmtD(s.windowStart)}`;
+  return `<tr>
+    <td><b>#${p?p.num:'?'} ${p?esc(p.name):'—'}</b></td>
+    <td>${s.type==='rouge'?'<span class="cardpill r"><span class="sq"></span></span> ':'<span class="cardpill y"><span class="sq"></span></span> '}${motif}</td>
+    <td><b>${total}</b> match${total>1?'s':''}</td>
+    <td style="color:var(--muted)">${fmtD(s.triggerDate)}</td>
+    <td>${status}</td>
+    <td style="text-align:right;white-space:nowrap">
+      <button class="btn sm" onclick="manageSusp('${s.id}')">Gérer</button>
+      <button class="btn sm primary" onclick="markServed('${s.id}',true)">✓ Purgée</button>
+    </td>
+  </tr>`;
+}
+
+/* ====================== SQUAD ====================== */
+function renderSquad(a){
+  a = a || analyze();
+  const q = (document.getElementById('squadSearch').value||'').toLowerCase().trim();
+  const pos = document.getElementById('squadPos').value;
+  const sort = document.getElementById('squadSort').value;
+  let list = state.players.filter(p=>{
+    if(pos && p.pos!==pos) return false;
+    if(q && !((p.name||'').toLowerCase().includes(q) || String(p.num).includes(q))) return false;
+    return true;
+  });
+  list.sort((x,y)=>{
+    const ax=a.perPlayer[x.id], ay=a.perPlayer[y.id];
+    if(sort==='name') return (x.name||'').localeCompare(y.name||'');
+    if(sort==='yellow') return ay.yellowsTotal-ax.yellowsTotal;
+    if(sort==='risk') return (ay.openSusp*100+ay.activeWindow)-(ax.openSusp*100+ax.activeWindow);
+    return x.num-y.num;
+  });
+  const grid = document.getElementById('squadGrid');
+  if(list.length===0){ grid.innerHTML = '<div class="empty" style="grid-column:1/-1">Aucun joueur trouvé.</div>'; return; }
+  grid.innerHTML = list.map(p=>{
+    const s = a.perPlayer[p.id];
+    const suspended = s.openSusp>0;
+    const warn = s.activeWindow===SEUIL_JAUNES-1;
+    let flag='';
+    if(suspended) flag = `<div class="status-flag flag-susp">Suspendu · ${s.totalSuspMatches} m</div>`;
+    else if(warn) flag = `<div class="status-flag flag-warn">À risque</div>`;
+    const dots = Array.from({length:SEUIL_JAUNES},(_,i)=>`<div class="wdot ${i<s.activeWindow?'on':''}"></div>`).join('');
+    return `<div class="pcard ${suspended?'suspended':warn?'warn':''}" onclick="showPlayer('${p.id}')">
+      ${flag}
+      <div class="pcard-top">
+        <div class="num">${p.num}</div>
+        <div>
+          <div class="pname">${esc(p.name)}</div>
+          <div class="ppos"><span class="posdot" style="background:${POSTES[p.pos]}"></span>${p.pos}</div>
+        </div>
+      </div>
+      <div class="pcard-stats">
+        <span class="chip y"><span class="sq"></span>${s.yellowsTotal}</span>
+        <span class="chip r"><span class="sq"></span>${s.redsTotal}</span>
+      </div>
+      <div class="window-bar">${dots}</div>
+      <div class="window-txt">${s.activeWindow}/${SEUIL_JAUNES} jaunes${s.windowEnd?` · période jusqu'au ${s.windowEnd.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}`:''}${warn?' — 1 avant suspension':''}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ====================== SUSPENSIONS VIEW ====================== */
+function renderSusp(a){
+  a = a || analyze();
+  const f = document.getElementById('suspFilter').value;
+  let list = a.suspensions.slice().sort((x,y)=>parseD(y.triggerDate)-parseD(x.triggerDate));
+  if(f==='todo') list = list.filter(s=>!s.served);
+  if(f==='done') list = list.filter(s=>s.served);
+  const t = document.getElementById('suspTable');
+  if(list.length===0){
+    t.innerHTML = '<tbody><tr><td><div class="empty"><div class="big">Aucune suspension</div></div></td></tr></tbody>';
+    return;
+  }
+  t.innerHTML = '<thead><tr><th>Joueur</th><th>Motif</th><th>Matchs</th><th>Déclenchée le</th><th>Statut</th><th></th></tr></thead><tbody>'+
+    list.map(s=>{
+      const p = playerById(s.playerId);
+      const total = s.baseMatches+s.extraMatches;
+      let status;
+      if(s.served) status='<span class="badge done">✓ Purgée</span>';
+      else if(s.type==='rouge' && s.committeePending) status='<span class="badge pending">⏳ Commission</span>';
+      else status='<span class="badge todo">À purger</span>';
+      const motif = s.type==='rouge'
+        ? 'Carton rouge'+(s.extraMatches?` (+${s.extraMatches} comm.)`:'')
+        : `${SEUIL_JAUNES} jaunes · dès le ${fmtD(s.windowStart)}`;
+      return `<tr>
+        <td><b>#${p?p.num:'?'} ${p?esc(p.name):'—'}</b></td>
+        <td>${s.type==='rouge'?cardPill('rouge'):cardPill('jaune')} ${motif}</td>
+        <td><b>${total}</b></td>
+        <td style="color:var(--muted)">${fmtD(s.triggerDate)}</td>
+        <td>${status}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn sm" onclick="manageSusp('${s.id}')">Gérer</button>
+          ${s.served
+            ? `<button class="btn sm ghost" onclick="markServed('${s.id}',false)">↺ Rouvrir</button>`
+            : `<button class="btn sm primary" onclick="markServed('${s.id}',true)">✓ Purgée</button>`}
+        </td>
+      </tr>`;
+    }).join('')+'</tbody>';
+}
+
+/* ====================== HISTORY ====================== */
+function renderHist(){
+  const q = (document.getElementById('histSearch').value||'').toLowerCase().trim();
+  const ty = document.getElementById('histType').value;
+  let list = state.cards.slice().sort((x,y)=>parseD(y.date)-parseD(x.date));
+  if(ty) list = list.filter(c=>c.type===ty);
+  if(q) list = list.filter(c=>{
+    const p = playerById(c.playerId);
+    const hay = [p?p.name:'', p?p.num:'', c.opp, c.comp, c.note].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+  const t = document.getElementById('histTable');
+  if(list.length===0){ t.innerHTML='<tbody><tr><td><div class="empty"><div class="big">Aucun carton</div></div></td></tr></tbody>'; return; }
+  t.innerHTML = '<thead><tr><th>Date</th><th>Joueur</th><th>Carton</th><th>Adversaire</th><th>Compétition</th><th>Note</th><th></th></tr></thead><tbody>'+
+    list.map(c=>{
+      const p = playerById(c.playerId);
+      return `<tr>
+        <td style="white-space:nowrap">${fmtD(c.date)}</td>
+        <td><b>#${p?p.num:'?'} ${p?esc(p.name):'—'}</b></td>
+        <td>${cardPill(c.type)}</td>
+        <td style="color:var(--muted)">${esc(c.opp)||'—'}</td>
+        <td style="color:var(--muted)">${esc(c.comp)||'—'}</td>
+        <td style="color:var(--muted);max-width:180px">${esc(c.note)||'—'}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn sm" onclick="openCardModal(null,'${c.id}')">Éditer</button>
+          <button class="btn sm danger" onclick="deleteCard('${c.id}')">✕</button>
+        </td>
+      </tr>`;
+    }).join('')+'</tbody>';
+}
+
+/* ====================== HELPERS RENDU ====================== */
+function cardPill(type){
+  return type==='rouge'
+    ? '<span class="cardpill r"><span class="sq"></span>Rouge</span>'
+    : '<span class="cardpill y"><span class="sq"></span>Jaune</span>';
+}
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+
+/* ====================== TABS ====================== */
+function switchTab(t){
+  currentTab=t;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===t));
+  ['dash','squad','susp','hist'].forEach(v=>{
+    document.getElementById('view-'+v).style.display = v===t?'block':'none';
+  });
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ====================== MODALS ====================== */
+function openModal(html){ document.getElementById('modalBox').innerHTML=html; document.getElementById('overlay').classList.add('open'); }
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
+
+/* ---- Ajouter / éditer un carton ---- */
+let cardForm = {};
+function openCardModal(presetPlayer, editId){
+  const editing = editId ? state.cards.find(c=>c.id===editId) : null;
+  cardForm = editing ? {...editing} : {id:null, playerId:presetPlayer||'', type:'jaune', date:todayStr(), opp:'', comp:'', note:''};
+  const opts = state.players.slice().sort((a,b)=>a.num-b.num)
+    .map(p=>`<option value="${p.id}" ${p.id===cardForm.playerId?'selected':''}>#${p.num} — ${esc(p.name)} (${p.pos})</option>`).join('');
+  openModal(`
+    <div class="modal-h"><h3>${editing?'Éditer le carton':'Enregistrer un carton'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="fld">
+        <label>Joueur</label>
+        <select id="cf_player">${opts}</select>
+      </div>
+      <div class="fld">
+        <label>Type de carton</label>
+        <div class="type-pick">
+          <div class="type-opt y ${cardForm.type==='jaune'?'sel':''}" id="opt-y" onclick="pickType('jaune')"><div class="sq"></div>Jaune</div>
+          <div class="type-opt r ${cardForm.type==='rouge'?'sel':''}" id="opt-r" onclick="pickType('rouge')"><div class="sq"></div>Rouge</div>
+        </div>
+        <div class="note" style="margin-top:8px">Un second jaune valant rouge se saisit comme <b>Rouge</b>.</div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>Date</label><input type="date" id="cf_date" value="${cardForm.date}"></div>
+        <div class="fld"><label>Compétition</label><input id="cf_comp" value="${esc(cardForm.comp)}" placeholder="Championnat, Coupe…"></div>
+      </div>
+      <div class="fld"><label>Adversaire</label><input id="cf_opp" value="${esc(cardForm.opp)}" placeholder="ex. AS Réserve"></div>
+      <div class="fld"><label>Note (facultatif)</label><textarea id="cf_note" placeholder="Faute, contestation…">${esc(cardForm.note)}</textarea></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="saveCard()">${editing?'Enregistrer':'Ajouter le carton'}</button>
+    </div>
+  `);
+}
+function pickType(t){
+  cardForm.type=t;
+  document.getElementById('opt-y').classList.toggle('sel',t==='jaune');
+  document.getElementById('opt-r').classList.toggle('sel',t==='rouge');
+}
+function saveCard(){
+  const playerId = document.getElementById('cf_player').value;
+  const date = document.getElementById('cf_date').value;
+  if(!playerId){ alert("Sélectionnez un joueur."); return; }
+  if(!date){ alert("Indiquez la date du carton."); return; }
+  const data = {
+    playerId, type:cardForm.type, date,
+    comp: document.getElementById('cf_comp').value.trim(),
+    opp: document.getElementById('cf_opp').value.trim(),
+    note: document.getElementById('cf_note').value.trim()
+  };
+  if(cardForm.id){
+    const i = state.cards.findIndex(c=>c.id===cardForm.id);
+    state.cards[i] = {...state.cards[i], ...data};
+  }else{
+    state.cards.push({id:uid(), ...data});
+  }
+  save(); closeModal(); renderAll();
+}
+function deleteCard(id){
+  if(!confirm("Supprimer ce carton ? Les suspensions liées seront recalculées.")) return;
+  state.cards = state.cards.filter(c=>c.id!==id);
+  save(); renderAll();
+}
+
+/* ---- Gérer une suspension ---- */
+function manageSusp(id){
+  const a = analyze();
+  const s = a.suspensions.find(x=>x.id===id);
+  if(!s){ return; }
+  const p = playerById(s.playerId);
+  const isRed = s.type==='rouge';
+  openModal(`
+    <div class="modal-h"><h3>Gérer la suspension</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="note" style="margin-bottom:14px">
+        <b style="color:var(--txt);font-size:15px">#${p.num} ${esc(p.name)}</b><br>
+        ${isRed?'Carton rouge':SEUIL_JAUNES+' cartons jaunes (période ouverte le '+fmtD(s.windowStart)+')'} · déclenchée le ${fmtD(s.triggerDate)}<br>
+        Suspension automatique : <b>${s.baseMatches} match</b>
+      </div>
+      ${isRed?`
+      <div class="fld">
+        <label>Décision de la commission de discipline</label>
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-weight:600;color:var(--txt);margin-bottom:10px;cursor:pointer">
+          <input type="checkbox" id="ms_comm" ${!s.committeePending?'checked':''} style="width:auto" onchange="document.getElementById('ms_commHint').style.display=this.checked?'none':'block'">
+          Décision rendue par la commission
+        </label>
+        <div id="ms_commHint" class="note" style="display:${s.committeePending?'block':'none'}">Tant que la case est décochée, la suspension reste « en attente de la commission ».</div>
+      </div>
+      <div class="fld">
+        <label>Matchs supplémentaires (commission)</label>
+        <input type="number" id="ms_extra" min="0" max="20" value="${s.extraMatches}">
+        <div class="note" style="margin-top:6px">S'ajoute(nt) au match automatique. Total = ${s.baseMatches} + supplément.</div>
+      </div>`:`
+      <div class="fld">
+        <label>Matchs supplémentaires (facultatif)</label>
+        <input type="number" id="ms_extra" min="0" max="20" value="${s.extraMatches}">
+      </div>`}
+      <div class="fld"><label>Note</label><textarea id="ms_note" placeholder="Référence dossier, motif…">${esc(s.note)}</textarea></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="closeModal()">Fermer</button>
+      <button class="btn primary" onclick="saveSusp('${s.id}',${isRed})">Enregistrer</button>
+    </div>
+  `);
+}
+function saveSusp(id,isRed){
+  const ov = state.overrides[id] || {};
+  ov.extra = Math.max(0, parseInt(document.getElementById('ms_extra').value)||0);
+  ov.note = document.getElementById('ms_note').value.trim();
+  if(isRed){ ov.committeeDone = document.getElementById('ms_comm').checked; }
+  state.overrides[id] = ov;
+  save(); closeModal(); renderAll();
+}
+function markServed(id, val){
+  const ov = state.overrides[id] || {};
+  ov.served = val; state.overrides[id]=ov;
+  save(); renderAll();
+}
+
+/* ---- Détail joueur ---- */
+function showPlayer(id){
+  const a = analyze();
+  const p = playerById(id); const s = a.perPlayer[id];
+  const myCards = state.cards.filter(c=>c.playerId===id).sort((x,y)=>parseD(y.date)-parseD(x.date));
+  const mySusp = a.suspensions.filter(x=>x.playerId===id).sort((x,y)=>parseD(y.triggerDate)-parseD(x.triggerDate));
+  openModal(`
+    <div class="modal-h"><h3 style="font-size:17px">Fiche joueur</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="detail-head">
+        <div class="num">${p.num}</div>
+        <div>
+          <h3>${esc(p.name)}</h3>
+          <div class="ppos" style="font-size:13px"><span class="posdot" style="background:${POSTES[p.pos]}"></span>${p.pos}</div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn sm" onclick="openPlayerModal('${p.id}')">Éditer</button>
+          <button class="btn sm primary" onclick="openCardModal('${p.id}')">＋ Carton</button>
+        </div>
+      </div>
+      <div class="mini-stats">
+        <div class="mini"><div class="v" style="color:var(--yellow)">${s.yellowsTotal}</div><div class="l">Jaunes</div></div>
+        <div class="mini"><div class="v" style="color:var(--red)">${s.redsTotal}</div><div class="l">Rouges</div></div>
+        <div class="mini"><div class="v" style="color:${s.openSusp?'#ff8a3d':'var(--muted)'}">${s.totalSuspMatches}</div><div class="l">Matchs susp.</div></div>
+      </div>
+      <div class="note">Période en cours : <b style="color:var(--txt)">${s.activeWindow}/${SEUIL_JAUNES}</b> jaunes${s.windowStart?` — ouverte le ${fmtD(s.windowStart)}, valable jusqu'au ${s.windowEnd.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'})}`:' (aucune période active)'}${s.activeWindow===SEUIL_JAUNES-1?' — <span style="color:var(--yellow)">1 avant suspension</span>':''}.</div>
+      ${mySusp.length?`<div class="section-title">Suspensions</div>`+mySusp.map(x=>{
+        const total=x.baseMatches+x.extraMatches;
+        const st = x.served?'<span class="badge done">Purgée</span>':(x.type==='rouge'&&x.committeePending?'<span class="badge pending">Commission</span>':'<span class="badge todo">À purger</span>');
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+          ${cardPill(x.type)} <span style="font-weight:700">${total} match${total>1?'s':''}</span>
+          <span style="color:var(--muted);font-size:12px">${fmtD(x.triggerDate)}</span>
+          <span style="margin-left:auto">${st}</span></div>`;
+      }).join(''):''}
+      <div class="section-title">Historique des cartons</div>
+      ${myCards.length? `<table class="tbl"><tbody>`+myCards.map(c=>`<tr>
+          <td style="white-space:nowrap">${fmtD(c.date)}</td>
+          <td>${cardPill(c.type)}</td>
+          <td style="color:var(--muted)">${esc([c.opp,c.comp].filter(Boolean).join(' · '))||'—'}</td>
+          <td style="text-align:right"><button class="btn sm danger" onclick="deleteCard('${c.id}');closeModal();showPlayer('${id}')">✕</button></td>
+        </tr>`).join('')+`</tbody></table>` : '<div class="note">Aucun carton.</div>'}
+    </div>
+  `);
+}
+
+/* ---- Éditer / ajouter un joueur ---- */
+function openPlayerModal(id){
+  const p = id ? playerById(id) : {id:null,num:'',name:'',pos:'Milieu'};
+  openModal(`
+    <div class="modal-h"><h3>${id?'Éditer le joueur':'Ajouter un joueur'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="row2">
+        <div class="fld"><label>Numéro</label><input type="number" id="pf_num" value="${p.num}" min="1" max="99"></div>
+        <div class="fld"><label>Poste</label>
+          <select id="pf_pos">
+            ${['Gardien','Défenseur','Milieu','Attaquant'].map(x=>`<option ${x===p.pos?'selected':''}>${x}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="fld"><label>Nom du joueur</label><input id="pf_name" value="${esc(p.name)}" placeholder="Prénom Nom"></div>
+    </div>
+    <div class="modal-f">
+      ${id?`<button class="btn danger" style="margin-right:auto" onclick="deletePlayer('${id}')">Supprimer</button>`:''}
+      <button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="savePlayer('${id||''}')">Enregistrer</button>
+    </div>
+  `);
+}
+function savePlayer(id){
+  const num = parseInt(document.getElementById('pf_num').value)||0;
+  const name = document.getElementById('pf_name').value.trim();
+  const pos = document.getElementById('pf_pos').value;
+  if(!name){ alert("Indiquez le nom du joueur."); return; }
+  if(id){
+    const p = playerById(id); p.num=num; p.name=name; p.pos=pos;
+  }else{
+    state.players.push({id:uid(),num,name,pos});
+  }
+  save(); closeModal(); renderAll();
+}
+function deletePlayer(id){
+  const n = state.cards.filter(c=>c.playerId===id).length;
+  if(!confirm("Supprimer ce joueur"+(n?` et ses ${n} carton(s)`:'')+" ?")) return;
+  state.players = state.players.filter(p=>p.id!==id);
+  state.cards = state.cards.filter(c=>c.playerId!==id);
+  save(); closeModal(); renderAll();
+}
+
+/* ---- Nom du club ---- */
+function openClubName(){
+  openModal(`
+    <div class="modal-h"><h3>Identité du club</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="fld"><label>Nom du club / équipe</label><input id="cn_name" value="${esc(state.club)}"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="saveClub()">Enregistrer</button>
+    </div>
+  `);
+}
+function saveClub(){
+  state.club = document.getElementById('cn_name').value.trim()||'US Créteil Football';
+  save(); closeModal(); renderAll();
+}
+
+/* ====================== IMPORT / EXPORT ====================== */
+function exportData(){
+  const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='cartons_'+state.club.replace(/\s+/g,'_').toLowerCase()+'_'+todayStr()+'.json';
+  a.click(); URL.revokeObjectURL(url);
+}
+function importData(ev){
+  const file = ev.target.files[0]; if(!file) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const d = JSON.parse(r.result);
+      if(!d.players || !d.cards) throw new Error("Format invalide");
+      if(!confirm("Remplacer les données actuelles par le fichier importé ?")) return;
+      state = {club:d.club||'US Créteil Football', players:d.players, cards:d.cards, overrides:d.overrides||{}};
+      save(); renderAll();
+      alert("Données importées avec succès.");
+    }catch(e){ alert("Fichier illisible : "+e.message); }
+    ev.target.value='';
+  };
+  r.readAsText(file);
+}
+
+/* ====================== INIT ====================== */
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+(async()=>{ await load(); renderAll(); })();
+</script>
+</body>
+</html>
