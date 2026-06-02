@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi médical — Arrêts & blessures</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0f15;
+  --bg2:#0e151d;
+  --surface:#121b25;
+  --surface2:#18242f;
+  --line:#23323f;
+  --line2:#32485a;
+  --accent:#34d3c2;       /* teal clinique */
+  --accent-d:#1f9c8f;
+  --blue:#4ea3ff;
+  --txt:#eaf1f4;
+  --muted:#8497a6;
+  --muted2:#5d6f7d;
+  --amber:#ffb22e;
+  --amber-d:#c5851a;
+  --red:#ff5765;
+  --red-d:#c5303d;
+  --green:#3ddb8a;
+  --green-d:#1f9c5d;
+  --violet:#a78bfa;
+  --radius:14px;
+  --shadow:0 18px 44px -20px rgba(0,0,0,.75);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'IBM Plex Sans',sans-serif;
+  background:
+    radial-gradient(1100px 560px at 85% -8%, rgba(52,211,194,.09), transparent 60%),
+    radial-gradient(800px 460px at -5% 100%, rgba(78,163,255,.06), transparent 55%),
+    var(--bg);
+  color:var(--txt);-webkit-font-smoothing:antialiased;line-height:1.45;min-height:100vh;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.4;
+  background:linear-gradient(rgba(255,255,255,.012) 1px,transparent 1px) 0 0/100% 30px;
+}
+.wrap{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:0 18px 80px}
+
+/* HEADER */
+header.topbar{position:sticky;top:0;z-index:40;background:rgba(10,15,21,.85);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.topbar-inner{max-width:1200px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;cursor:pointer}
+.crest{width:42px;height:42px;border-radius:12px;flex:none;background:linear-gradient(150deg,var(--accent),var(--accent-d));display:grid;place-items:center;color:#042521;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2),0 8px 20px -6px rgba(52,211,194,.5)}
+.crest svg{width:24px;height:24px}
+.brand h1{font-family:'Archivo';font-weight:800;font-size:18px;letter-spacing:.2px;line-height:1}
+.brand .sub{font-size:11.5px;color:var(--muted);margin-top:3px;letter-spacing:.3px}
+.spacer{flex:1}
+.btn{font-family:'IBM Plex Sans';font-weight:600;font-size:13.5px;border:1px solid var(--line2);background:var(--surface2);color:var(--txt);padding:9px 14px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.15s;white-space:nowrap}
+.btn:hover{border-color:var(--accent);background:#1c2c38;transform:translateY(-1px)}
+.btn.primary{background:linear-gradient(150deg,var(--accent),var(--accent-d));border-color:transparent;color:#042521;font-weight:700}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;border-color:var(--line)}
+.btn.sm{padding:6px 10px;font-size:12px;border-radius:8px}
+.btn.danger{border-color:var(--red-d);color:#ffb0b7}
+.btn.danger:hover{background:rgba(255,87,101,.12);border-color:var(--red)}
+
+/* NAV */
+nav.tabs{display:flex;gap:6px;margin:22px 0 18px;flex-wrap:wrap}
+.tab{font-family:'Archivo';font-weight:600;font-size:13.5px;letter-spacing:.2px;padding:9px 16px;border-radius:10px;cursor:pointer;color:var(--muted);border:1px solid transparent;transition:.15s;display:flex;align-items:center;gap:8px}
+.tab:hover{color:var(--txt);background:var(--surface)}
+.tab.active{color:var(--txt);background:var(--surface);border-color:var(--line2)}
+.tab .cnt{font-size:11px;background:var(--line2);color:var(--txt);padding:1px 7px;border-radius:20px;min-width:20px;text-align:center;font-weight:700}
+.tab.active .cnt{background:var(--accent);color:#042521}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px}
+.kpi{background:linear-gradient(160deg,var(--surface),var(--bg2));border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;position:relative;overflow:hidden}
+.kpi .lab{font-size:11.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:700}
+.kpi .val{font-family:'Archivo';font-weight:800;font-size:40px;line-height:1;margin-top:8px}
+.kpi .hint{font-size:11.5px;color:var(--muted2);margin-top:5px}
+.kpi.k-act .val{color:var(--amber)}
+.kpi.k-alert .val{color:var(--red)}
+.kpi.k-days .val{color:var(--blue)}
+.kpi.k-back .val{color:var(--green)}
+
+/* PANEL */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:22px}
+.panel-h{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.panel-h h2{font-family:'Archivo';font-weight:700;font-size:16px;letter-spacing:.2px}
+.panel-h .desc{font-size:12px;color:var(--muted)}
+.panel-b{padding:6px 18px 18px}
+.section-title{font-family:'Archivo';font-weight:700;font-size:13px;color:var(--muted);margin:18px 0 10px;letter-spacing:.3px}
+
+/* TOOLBAR */
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.search{flex:1;min-width:200px;position:relative}
+.search input{width:100%;background:var(--surface);border:1px solid var(--line);color:var(--txt);padding:10px 14px 10px 38px;border-radius:10px;font-family:inherit;font-size:14px}
+.search input:focus{outline:none;border-color:var(--accent)}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);opacity:.5}
+select.filter{background:var(--surface);border:1px solid var(--line);color:var(--txt);padding:10px 12px;border-radius:10px;font-family:inherit;font-size:13.5px;cursor:pointer}
+select.filter:focus{outline:none;border-color:var(--accent)}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{text-align:left;font-family:'Archivo';font-weight:600;font-size:11.5px;letter-spacing:.4px;color:var(--muted);text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--line)}
+.tbl td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(255,255,255,.014)}
+
+/* nature tag */
+.ntag{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:12px;padding:3px 10px;border-radius:20px;border:1px solid var(--line2);background:var(--surface2)}
+.ntag .dot{width:9px;height:9px;border-radius:50%}
+
+/* status badge */
+.badge{display:inline-flex;align-items:center;gap:6px;font-family:'Archivo';font-weight:600;font-size:11px;padding:4px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.badge.ongoing{background:rgba(255,178,46,.15);color:var(--amber);border:1px solid var(--amber-d)}
+.badge.decide{background:rgba(255,87,101,.15);color:#ff8a94;border:1px solid var(--red-d)}
+.badge.renewed{background:rgba(167,139,250,.15);color:#c4b1ff;border:1px solid #6d54b8}
+.badge.back{background:rgba(61,219,138,.15);color:#74e6ab;border:1px solid var(--green-d)}
+.badge.soon{background:rgba(78,163,255,.15);color:#8cc4ff;border:1px solid #2f6bb0}
+
+/* mini avatar */
+.pl{display:flex;align-items:center;gap:9px}
+.pl .av{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-family:'Archivo';font-weight:800;font-size:13px;background:var(--surface2);border:1px solid var(--line2)}
+.pl .nm{font-weight:600}
+.pl .po{font-size:11px;color:var(--muted)}
+
+/* progress bar duration */
+.durbar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;min-width:90px}
+.durbar > span{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--blue),var(--accent))}
+
+/* STATS bars */
+.statrow{display:grid;grid-template-columns:170px 1fr 70px;gap:12px;align-items:center;padding:8px 0}
+.statrow .lab{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.statrow .lab .dot{width:11px;height:11px;border-radius:50%}
+.statbar{height:24px;border-radius:7px;background:var(--surface2);overflow:hidden;position:relative}
+.statbar > span{display:block;height:100%;border-radius:7px;transition:width .5s ease}
+.statrow .n{text-align:right;font-family:'Archivo';font-weight:700;font-size:14px}
+.statrow .sub{font-size:11px;color:var(--muted);font-weight:500}
+
+/* empty */
+.empty{text-align:center;padding:46px 20px;color:var(--muted)}
+.empty .big{font-family:'Archivo';font-size:17px;color:var(--txt);margin-bottom:6px;font-weight:700}
+
+/* alert card */
+.alertcard{display:flex;align-items:center;gap:13px;padding:13px 15px;border-radius:11px;border:1px solid var(--red-d);background:rgba(255,87,101,.07);margin-bottom:10px}
+.alertcard.soon{border-color:#2f6bb0;background:rgba(78,163,255,.06)}
+.alertcard .ic{width:38px;height:38px;border-radius:10px;flex:none;display:grid;place-items:center;font-size:18px}
+.alertcard.crit .ic{background:rgba(255,87,101,.18);color:#ff8a94}
+.alertcard.soon .ic{background:rgba(78,163,255,.16);color:#8cc4ff}
+.alertcard .info{flex:1;min-width:0}
+.alertcard .info b{font-weight:700}
+.alertcard .info .meta{font-size:12px;color:var(--muted);margin-top:2px}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(3,7,11,.72);backdrop-filter:blur(4px);z-index:80;display:none;align-items:flex-start;justify-content:center;padding:38px 16px;overflow:auto}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--line2);border-radius:16px;width:100%;max-width:580px;box-shadow:var(--shadow);animation:pop .18s ease}
+@keyframes pop{from{transform:translateY(12px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+.modal-h{display:flex;align-items:center;padding:17px 20px;border-bottom:1px solid var(--line)}
+.modal-h h3{font-family:'Archivo';font-size:18px;font-weight:700}
+.modal-h .x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:23px;line-height:1;padding:4px 9px;border-radius:8px}
+.modal-h .x:hover{background:var(--surface2);color:var(--txt)}
+.modal-b{padding:20px}
+.modal-f{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+.fld{margin-bottom:15px}
+.fld label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:6px}
+.fld input,.fld select,.fld textarea{width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--txt);padding:10px 12px;border-radius:9px;font-family:inherit;font-size:14px}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--accent)}
+.fld textarea{resize:vertical;min-height:60px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.hintline{font-size:12px;color:var(--muted);margin-top:6px}
+.mini-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.mini{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+.mini .v{font-family:'Archivo';font-size:24px;font-weight:800;line-height:1}
+.mini .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-top:5px;font-weight:700}
+.note{font-size:12.5px;color:var(--muted);line-height:1.55}
+.foot{text-align:center;color:var(--muted2);font-size:12px;margin-top:30px;line-height:1.7}
+
+@media(max-width:780px){.kpis{grid-template-columns:1fr 1fr}.row2,.row3{grid-template-columns:1fr}.statrow{grid-template-columns:120px 1fr 56px}}
+@media print{body{background:#fff;color:#000}header.topbar,nav.tabs,.toolbar,.btn,.overlay{display:none!important}.panel{border-color:#ccc}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand" onclick="openClubName()">
+      <div class="crest"><svg viewBox="0 0 24 24" fill="none" stroke="#042521" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.7-1.5 2 4 .8-2 .8 1.5h6.28"/></svg></div>
+      <div>
+        <h1 id="clubTitle">Cellule médicale</h1>
+        <div class="sub">Suivi des arrêts &amp; indisponibilités</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);margin-right:4px">
+      <span id="syncDot" style="width:9px;height:9px;border-radius:50%;background:#4ea3ff" title="Chargement…"></span>
+      <span id="syncLabel">Chargement…</span>
+    </div>
+    <button class="btn ghost" onclick="refreshFromCloud()" title="Recharger la base commune">↻ Actualiser</button>
+    <button class="btn primary" onclick="openArretModal()">＋ Arrêt</button>
+    <button class="btn ghost" onclick="exportData()" title="Sauvegarder vos données">⭳ Exporter</button>
+    <button class="btn ghost" onclick="document.getElementById('importFile').click()" title="Restaurer depuis un fichier">⭱ Importer</button>
+    <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(event)">
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="tabs" id="tabs">
+    <div class="tab active" data-tab="dash" onclick="switchTab('dash')">▦ Tableau de bord</div>
+    <div class="tab" data-tab="arrets" onclick="switchTab('arrets')">🩹 Arrêts <span class="cnt" id="tabArretsCnt">0</span></div>
+    <div class="tab" data-tab="players" onclick="switchTab('players')">⚕ Indisponibilités <span class="cnt" id="tabPlayersCnt">0</span></div>
+    <div class="tab" data-tab="stats" onclick="switchTab('stats')">📊 Statistiques</div>
+  </nav>
+
+  <!-- DASHBOARD -->
+  <section id="view-dash">
+    <div class="kpis">
+      <div class="kpi k-act"><div class="lab">Arrêts en cours</div><div class="val" id="kpiAct">0</div><div class="hint" id="kpiActh">joueurs indisponibles</div></div>
+      <div class="kpi k-alert"><div class="lab">Décisions à prendre</div><div class="val" id="kpiAlert">0</div><div class="hint">renouveler ou reprendre</div></div>
+      <div class="kpi k-days"><div class="lab">Jours d'arrêt (saison)</div><div class="val" id="kpiDays">0</div><div class="hint">cumul de l'effectif</div></div>
+      <div class="kpi k-back"><div class="lab">Reprises</div><div class="val" id="kpiBack">0</div><div class="hint">joueurs aptes</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h2>⏰ Renouvellements à statuer</h2><span class="desc">Arrêts arrivant à échéance ou dépassés sans décision</span></div>
+      <div class="panel-b" id="dashAlerts"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h2>🩹 Arrêts en cours</h2><span class="desc">Joueurs actuellement indisponibles</span></div>
+      <div class="panel-b" id="dashOngoing" style="padding:0"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h2>🧬 Répartition par nature</h2><span class="desc">Aperçu — détail dans l'onglet Statistiques</span></div>
+      <div class="panel-b" id="dashNature"></div>
+    </div>
+  </section>
+
+  <!-- ARRÊTS -->
+  <section id="view-arrets" style="display:none">
+    <div class="toolbar">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="arretSearch" placeholder="Rechercher un joueur, une blessure…" oninput="renderArrets()">
+      </div>
+      <select class="filter" id="arretNature" onchange="renderArrets()"><option value="">Toutes natures</option></select>
+      <select class="filter" id="arretStatus" onchange="renderArrets()">
+        <option value="">Tous statuts</option>
+        <option value="ongoing">En cours</option>
+        <option value="decide">À statuer</option>
+        <option value="back">Repris / apte</option>
+        <option value="renewed">Renouvelé</option>
+      </select>
+      <select class="filter" id="arretSort" onchange="renderArrets()">
+        <option value="recent">Trier · Récent</option>
+        <option value="duration">Trier · Durée</option>
+        <option value="end">Trier · Fin proche</option>
+      </select>
+    </div>
+    <div class="panel"><div class="panel-b" style="padding:0"><table class="tbl" id="arretTable"></table></div></div>
+  </section>
+
+  <!-- INDISPONIBILITÉS -->
+  <section id="view-players" style="display:none">
+    <div class="toolbar">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="playerSearch" placeholder="Rechercher un joueur…" oninput="renderPlayers()">
+      </div>
+      <select class="filter" id="playerSort" onchange="renderPlayers()">
+        <option value="days">Trier · Jours d'indispo</option>
+        <option value="episodes">Trier · Nb d'arrêts</option>
+        <option value="num">Trier · Numéro</option>
+        <option value="status">Trier · Statut</option>
+      </select>
+      <div class="spacer"></div>
+      <button class="btn" onclick="openPlayerModal()">＋ Joueur</button>
+      <button class="btn ghost" onclick="window.print()">🖨 Imprimer</button>
+    </div>
+    <div class="panel"><div class="panel-b" style="padding:0"><table class="tbl" id="playerTable"></table></div></div>
+  </section>
+
+  <!-- STATS -->
+  <section id="view-stats" style="display:none">
+    <div class="toolbar">
+      <select class="filter" id="statMetric" onchange="renderStats()">
+        <option value="count">Mesure · Nombre d'arrêts</option>
+        <option value="days">Mesure · Jours cumulés</option>
+      </select>
+      <select class="filter" id="statPeriod" onchange="renderStats()">
+        <option value="all">Toute la période</option>
+        <option value="365">12 derniers mois</option>
+        <option value="90">3 derniers mois</option>
+      </select>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h2>🧬 Blessures par nature</h2><span class="desc" id="statSummary"></span></div>
+      <div class="panel-b" id="statNature"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h2>📋 Synthèse chiffrée</h2></div>
+      <div class="panel-b" id="statTable" style="padding:0"></div>
+    </div>
+  </section>
+
+  <div class="foot">
+    Données enregistrées automatiquement sur cet appareil. Pensez à <b>Exporter</b> régulièrement pour conserver une sauvegarde.<br>
+    Une alerte « à statuer » apparaît quand la fin d'un arrêt est atteinte (ou proche) sans décision de renouvellement ni reprise.
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()"><div class="modal" id="modalBox"></div></div>
+
+<script>
+"use strict";
+/* ============ CONFIG ============ */
+const ALERTE_JOURS = 3;            // alerte X jours avant la fin prévue
+const STORE_KEY = "suiviMedical.v1";
+
+// Natures de blessure (modifiables via le code) — couleur pour les stats
+const NATURES = [
+  {id:'musculaire', label:'Musculaire',      color:'#ff5765'},
+  {id:'ligamentaire',label:'Ligamentaire',   color:'#ffb22e'},
+  {id:'articulaire', label:'Articulaire',    color:'#4ea3ff'},
+  {id:'osseuse',     label:'Osseuse / fracture',color:'#a78bfa'},
+  {id:'tendineuse',  label:'Tendineuse',     color:'#34d3c2'},
+  {id:'commotion',   label:'Commotion / tête',color:'#f472b6'},
+  {id:'maladie',     label:'Maladie',        color:'#9ca3af'},
+  {id:'autre',       label:'Autre',          color:'#64748b'}
+];
+function natureOf(id){ return NATURES.find(n=>n.id===id) || NATURES[NATURES.length-1]; }
+
+const POSTES = {"Gardien":"#4ea3ff","Défenseur":"#3ddb8a","Milieu":"#ffb22e","Attaquant":"#ff5765"};
+
+/* ============ ÉTAT ============ */
+let state = { club:"Cellule médicale", players:[], arrets:[] };
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+function seedPlayers(){
+  const layout=[
+    {n:1,p:"Gardien"},{n:16,p:"Gardien"},{n:30,p:"Gardien"},
+    {n:2,p:"Défenseur"},{n:3,p:"Défenseur"},{n:4,p:"Défenseur"},{n:5,p:"Défenseur"},{n:12,p:"Défenseur"},{n:15,p:"Défenseur"},{n:21,p:"Défenseur"},{n:24,p:"Défenseur"},
+    {n:6,p:"Milieu"},{n:8,p:"Milieu"},{n:10,p:"Milieu"},{n:14,p:"Milieu"},{n:18,p:"Milieu"},{n:20,p:"Milieu"},{n:23,p:"Milieu"},{n:26,p:"Milieu"},
+    {n:7,p:"Attaquant"},{n:9,p:"Attaquant"},{n:11,p:"Attaquant"},{n:17,p:"Attaquant"},{n:19,p:"Attaquant"},{n:22,p:"Attaquant"},{n:25,p:"Attaquant"},{n:27,p:"Attaquant"}
+  ];
+  return layout.map((x,i)=>({id:uid(),num:x.n,name:"Joueur "+(i+1),pos:x.p}));
+}
+/* ============ STOCKAGE PARTAGÉ (Netlify Blobs via /api/data) ============
+   - Lecture au démarrage depuis le serveur (base commune à tous).
+   - Écriture sur le serveur à chaque modification (+ cache localStorage).
+   - Si le serveur est injoignable (ouvert en local, hors-ligne…), bascule
+     automatiquement sur le localStorage de l'appareil.
+   Remarque : enregistrement « dernier qui sauvegarde gagne ». Pour un petit
+   staff c'est suffisant ; pensez à Actualiser avant de saisir si plusieurs
+   personnes éditent en même temps.
+*/
+const CLOUD_KEY = "medical";          // clé du Blob (le tableau cartons utilisera "cartons")
+const API = "/api/data";
+let cloudOK = false;                   // true si le serveur répond
+let saveTimer = null;
+
+function accessHeaders(){
+  const c = localStorage.getItem('teamCode');
+  return c ? {'x-access-code': c} : {};
+}
+async function apiFetch(opts){
+  let r = await fetch(API+"?key="+CLOUD_KEY, opts);
+  if(r.status===403){
+    const code = prompt("Code d'accès de l'équipe :");
+    if(code){ localStorage.setItem('teamCode', code);
+      r = await fetch(API+"?key="+CLOUD_KEY, {...opts, headers:{...(opts&&opts.headers||{}), ...accessHeaders()}}); }
+  }
+  return r;
+}
+function setSync(s){
+  const el=document.getElementById('syncDot'); if(!el) return;
+  const map={synced:['#3ddb8a','Synchronisé'],syncing:['#ffb22e','Enregistrement…'],error:['#ff5765','Hors-ligne (cet appareil)'],loading:['#4ea3ff','Chargement…']};
+  const [c,t]=map[s]||map.error; el.style.background=c; el.title=t;
+  const lab=document.getElementById('syncLabel'); if(lab) lab.textContent=t;
+}
+
+async function load(){
+  setSync('loading');
+  try{
+    const r = await apiFetch({headers:{...accessHeaders()}});
+    if(!r.ok) throw new Error('http');
+    const data = await r.json();
+    if(data && data.players){ state=data; }
+    else { // base vide côté serveur : on initialise et on pousse
+      state.players=seedPlayers(); state.arrets=[]; }
+    cloudOK=true; setSync('synced');
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    if(!data || !data.players) pushCloud(); // crée la base commune au 1er lancement
+  }catch(e){
+    cloudOK=false; setSync('error');
+    try{
+      const raw=localStorage.getItem(STORE_KEY);
+      if(raw) state=JSON.parse(raw); else state.players=seedPlayers();
+    }catch(_){ state.players=seedPlayers(); }
+  }
+  if(!state.arrets) state.arrets=[];
+}
+
+async function pushCloud(){
+  if(!cloudOK){ return; }
+  setSync('syncing');
+  try{
+    const r = await apiFetch({method:'POST',headers:{'Content-Type':'application/json',...accessHeaders()},body:JSON.stringify(state)});
+    if(!r.ok) throw new Error('http');
+    setSync('synced');
+  }catch(e){ cloudOK=false; setSync('error'); }
+}
+
+function save(){
+  try{ localStorage.setItem(STORE_KEY,JSON.stringify(state)); }catch(e){}
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(pushCloud, 350); // anti-rebond
+}
+
+// Recharge la base commune (bouton Actualiser + au retour sur l'onglet)
+async function refreshFromCloud(){
+  if(!cloudOK) { await load(); renderAll(); return; }
+  setSync('loading');
+  try{
+    const r = await apiFetch({headers:{...accessHeaders()}});
+    if(!r.ok) throw new Error('http');
+    const data = await r.json();
+    if(data && data.players){ state=data; localStorage.setItem(STORE_KEY,JSON.stringify(state)); }
+    setSync('synced'); renderAll();
+  }catch(e){ cloudOK=false; setSync('error'); }
+}
+window.addEventListener('focus', ()=>{ if(cloudOK) refreshFromCloud(); });
+
+/* ============ DATES ============ */
+function parseD(s){ return s?new Date(s+"T00:00:00"):null; }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function startOfToday(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+function fmtD(s){ if(!s) return '—'; return parseD(s).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'}); }
+function daysBetween(a,b){ return Math.round((b-a)/86400000); }
+// durée inclusive début->fin en jours (min 1)
+function arretDuration(ar, asOf){
+  const start=parseD(ar.start); if(!start) return 0;
+  let end = ar.end ? parseD(ar.end) : (asOf||startOfToday());
+  if(ar.status==='back' && ar.end) end=parseD(ar.end);
+  if(!ar.end){ end = asOf||startOfToday(); } // en cours -> jusqu'à aujourd'hui
+  if(end<start) end=start;
+  return daysBetween(start,end)+1;
+}
+
+/* ============ STATUT / ALERTES ============
+   status possibles enregistrés : 'ongoing' (défaut), 'renewed', 'back'
+   - back  : joueur repris / apte (terminé)
+   - renewed : arrêt prolongé (décision prise, reste indispo)
+   - ongoing : en cours
+   On dérive l'alerte "à statuer" si: pas 'back', fin atteinte ou dans <= ALERTE_JOURS jours.
+*/
+function arretView(ar){
+  const today=startOfToday();
+  const start=parseD(ar.start), end=ar.end?parseD(ar.end):null;
+  const dur=arretDuration(ar);
+  let display=ar.status||'ongoing';
+  let toDecide=false, daysToEnd=null;
+  if(display!=='back'){
+    if(end){
+      daysToEnd = daysBetween(today,end); // >0 futur, 0 aujourd'hui, <0 dépassé
+      if(daysToEnd <= ALERTE_JOURS) toDecide=true;
+    } else {
+      toDecide=true; // pas de date de fin renseignée -> à statuer
+    }
+  }
+  return {dur, display, toDecide, daysToEnd, start, end};
+}
+function playerById(id){ return state.players.find(p=>p.id===id); }
+
+/* ============ ANALYSE GLOBALE ============ */
+function analyze(){
+  const per={};
+  for(const p of state.players) per[p.id]={episodes:0,days:0,ongoing:false,toDecide:false,lastEnd:null};
+  let activeCount=0, decideCount=0, backCount=0, totalDays=0;
+  for(const ar of state.arrets){
+    const v=arretView(ar);
+    const pid=ar.playerId;
+    if(!per[pid]) per[pid]={episodes:0,days:0,ongoing:false,toDecide:false,lastEnd:null};
+    per[pid].episodes++;
+    per[pid].days+=v.dur;
+    totalDays+=v.dur;
+    if(v.display!=='back'){ per[pid].ongoing=true; }
+    if(v.toDecide) per[pid].toDecide=true;
+    if(v.display==='back') backCount++;
+  }
+  for(const p of state.players){
+    if(per[p.id].ongoing) activeCount++;
+    if(per[p.id].toDecide) decideCount++;
+  }
+  return {per, activeCount, decideCount, backCount, totalDays};
+}
+
+/* ============ RENDU GLOBAL ============ */
+let currentTab='dash';
+function renderAll(){
+  // remplir le filtre natures (une fois)
+  const fn=document.getElementById('arretNature');
+  if(fn.options.length<=1){ NATURES.forEach(n=>{ const o=document.createElement('option'); o.value=n.id; o.textContent=n.label; fn.appendChild(o); }); }
+
+  const a=analyze();
+  document.getElementById('kpiAct').textContent=a.activeCount;
+  document.getElementById('kpiAlert').textContent=a.decideCount;
+  document.getElementById('kpiDays').textContent=a.totalDays;
+  document.getElementById('kpiBack').textContent=a.backCount;
+  document.getElementById('kpiActh').textContent = a.activeCount+" joueur(s) indisponible(s)";
+  document.getElementById('tabArretsCnt').textContent=state.arrets.length;
+  document.getElementById('tabPlayersCnt').textContent=state.players.length;
+  document.getElementById('clubTitle').textContent=state.club;
+
+  renderDash(a); renderArrets(); renderPlayers(a); renderStats();
+}
+
+/* ============ DASHBOARD ============ */
+function renderDash(a){
+  a=a||analyze();
+  // alerts
+  const alerts=state.arrets.map(ar=>({ar,v:arretView(ar)})).filter(x=>x.v.toDecide)
+    .sort((x,y)=>(x.v.daysToEnd??-9999)-(y.v.daysToEnd??-9999));
+  const elA=document.getElementById('dashAlerts');
+  if(alerts.length===0){ elA.innerHTML='<div class="empty"><div class="big">Aucune décision en attente</div>Tous les arrêts sont à jour.</div>'; }
+  else{
+    elA.innerHTML=alerts.map(({ar,v})=>{
+      const p=playerById(ar.playerId); const n=natureOf(ar.nature);
+      let msg, cls;
+      if(v.end===null){ msg='Aucune date de fin renseignée'; cls='crit'; }
+      else if(v.daysToEnd<0){ msg=`Échéance dépassée de ${Math.abs(v.daysToEnd)} j`; cls='crit'; }
+      else if(v.daysToEnd===0){ msg='Fin prévue aujourd\'hui'; cls='crit'; }
+      else { msg=`Fin prévue dans ${v.daysToEnd} j`; cls='soon'; }
+      return `<div class="alertcard ${cls}">
+        <div class="ic">${cls==='crit'?'⚠️':'🔔'}</div>
+        <div class="info">
+          <b>#${p?p.num:'?'} ${p?esc(p.name):'—'}</b> — ${esc(ar.detail||n.label)}
+          <div class="meta">${msg} · ${fmtD(ar.start)} → ${fmtD(ar.end)}</div>
+        </div>
+        <button class="btn sm" onclick="decideArret('${ar.id}')">Statuer</button>
+      </div>`;
+    }).join('');
+  }
+  // ongoing table
+  const ongoing=state.arrets.map(ar=>({ar,v:arretView(ar)})).filter(x=>x.v.display!=='back')
+    .sort((x,y)=>parseD(y.ar.start)-parseD(x.ar.start));
+  const elO=document.getElementById('dashOngoing');
+  if(ongoing.length===0){ elO.innerHTML='<div class="empty">Aucun arrêt en cours.</div>'; }
+  else{
+    elO.innerHTML='<table class="tbl"><thead><tr><th>Joueur</th><th>Nature</th><th>Depuis</th><th>Fin prévue</th><th>Durée</th><th>Statut</th></tr></thead><tbody>'+
+      ongoing.map(({ar,v})=>arretRowMini(ar,v)).join('')+'</tbody></table>';
+  }
+  // nature mini
+  renderNatureBars(document.getElementById('dashNature'),'count','all',true);
+}
+function arretRowMini(ar,v){
+  const p=playerById(ar.playerId); const n=natureOf(ar.nature);
+  return `<tr>
+    <td><div class="pl"><div class="av">${p?p.num:'?'}</div><div><div class="nm">${p?esc(p.name):'—'}</div><div class="po">${p?p.pos:''}</div></div></div></td>
+    <td><span class="ntag"><span class="dot" style="background:${n.color}"></span>${n.label}</span></td>
+    <td style="color:var(--muted)">${fmtD(ar.start)}</td>
+    <td style="color:var(--muted)">${fmtD(ar.end)}</td>
+    <td><b>${v.dur}</b> j</td>
+    <td>${statusBadge(ar,v)}</td>
+  </tr>`;
+}
+
+/* ============ ARRÊTS ============ */
+function renderArrets(){
+  const q=(document.getElementById('arretSearch').value||'').toLowerCase().trim();
+  const fNat=document.getElementById('arretNature').value;
+  const fStat=document.getElementById('arretStatus').value;
+  const sort=document.getElementById('arretSort').value;
+  let list=state.arrets.map(ar=>({ar,v:arretView(ar)}));
+  if(fNat) list=list.filter(x=>x.ar.nature===fNat);
+  if(fStat){
+    list=list.filter(x=>{
+      if(fStat==='decide') return x.v.toDecide;
+      if(fStat==='ongoing') return x.v.display==='ongoing' && !x.v.toDecide;
+      return x.v.display===fStat;
+    });
+  }
+  if(q) list=list.filter(({ar})=>{
+    const p=playerById(ar.playerId);
+    return [p?p.name:'',p?p.num:'',natureOf(ar.nature).label,ar.detail,ar.note].join(' ').toLowerCase().includes(q);
+  });
+  list.sort((x,y)=>{
+    if(sort==='duration') return y.v.dur-x.v.dur;
+    if(sort==='end'){ return (x.v.daysToEnd??99999)-(y.v.daysToEnd??99999); }
+    return parseD(y.ar.start)-parseD(x.ar.start);
+  });
+  const t=document.getElementById('arretTable');
+  if(list.length===0){ t.innerHTML='<tbody><tr><td><div class="empty"><div class="big">Aucun arrêt</div>Cliquez sur « ＋ Arrêt » pour en enregistrer un.</div></td></tr></tbody>'; return; }
+  t.innerHTML='<thead><tr><th>Joueur</th><th>Nature / Blessure</th><th>Début</th><th>Fin</th><th>Durée</th><th>Statut</th><th></th></tr></thead><tbody>'+
+    list.map(({ar,v})=>{
+      const p=playerById(ar.playerId); const n=natureOf(ar.nature);
+      return `<tr>
+        <td><div class="pl"><div class="av">${p?p.num:'?'}</div><div><div class="nm">${p?esc(p.name):'—'}</div><div class="po">${p?p.pos:''}</div></div></div></td>
+        <td><span class="ntag"><span class="dot" style="background:${n.color}"></span>${n.label}</span>${ar.detail?`<div style="font-size:12px;color:var(--muted);margin-top:4px">${esc(ar.detail)}</div>`:''}</td>
+        <td style="color:var(--muted);white-space:nowrap">${fmtD(ar.start)}</td>
+        <td style="color:var(--muted);white-space:nowrap">${fmtD(ar.end)}</td>
+        <td><b>${v.dur}</b> j</td>
+        <td>${statusBadge(ar,v)}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn sm" onclick="decideArret('${ar.id}')">Statuer</button>
+          <button class="btn sm" onclick="openArretModal(null,'${ar.id}')">Éditer</button>
+          <button class="btn sm danger" onclick="deleteArret('${ar.id}')">✕</button>
+        </td>
+      </tr>`;
+    }).join('')+'</tbody>';
+}
+function statusBadge(ar,v){
+  if(v.display==='back') return '<span class="badge back">✓ Repris</span>';
+  if(v.toDecide){
+    if(v.end===null) return '<span class="badge decide">à statuer</span>';
+    if(v.daysToEnd<0) return '<span class="badge decide">échéance dépassée</span>';
+    if(v.daysToEnd===0) return '<span class="badge decide">fin aujourd\'hui</span>';
+    return '<span class="badge soon">fin dans '+v.daysToEnd+' j</span>';
+  }
+  if(v.display==='renewed') return '<span class="badge renewed">renouvelé</span>';
+  return '<span class="badge ongoing">en cours</span>';
+}
+
+/* ============ INDISPONIBILITÉS ============ */
+function renderPlayers(a){
+  a=a||analyze();
+  const q=(document.getElementById('playerSearch').value||'').toLowerCase().trim();
+  const sort=document.getElementById('playerSort').value;
+  let list=state.players.filter(p=>{
+    if(q && !((p.name||'').toLowerCase().includes(q)||String(p.num).includes(q))) return false;
+    return true;
+  });
+  const maxDays=Math.max(1,...state.players.map(p=>a.per[p.id]?.days||0));
+  list.sort((x,y)=>{
+    const ax=a.per[x.id],ay=a.per[y.id];
+    if(sort==='episodes') return ay.episodes-ax.episodes;
+    if(sort==='num') return x.num-y.num;
+    if(sort==='status') return (ay.ongoing?1:0)-(ax.ongoing?1:0);
+    return ay.days-ax.days;
+  });
+  const t=document.getElementById('playerTable');
+  if(list.length===0){ t.innerHTML='<tbody><tr><td><div class="empty">Aucun joueur.</div></td></tr></tbody>'; return; }
+  t.innerHTML='<thead><tr><th>Joueur</th><th>Poste</th><th>Arrêts</th><th>Jours d\'indispo</th><th></th><th>Statut</th><th></th></tr></thead><tbody>'+
+    list.map(p=>{
+      const s=a.per[p.id];
+      const pct=Math.round((s.days/maxDays)*100);
+      let st='<span class="badge back" style="background:rgba(142,151,166,.12);color:var(--muted);border-color:var(--line2)">disponible</span>';
+      if(s.toDecide) st='<span class="badge decide">à statuer</span>';
+      else if(s.ongoing) st='<span class="badge ongoing">indisponible</span>';
+      return `<tr style="cursor:pointer" onclick="showPlayer('${p.id}')">
+        <td><div class="pl"><div class="av">${p.num}</div><div><div class="nm">${esc(p.name)}</div></div></div></td>
+        <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${POSTES[p.pos]};margin-right:6px"></span>${p.pos}</td>
+        <td><b>${s.episodes}</b></td>
+        <td style="white-space:nowrap"><b style="font-size:15px">${s.days}</b> <span style="color:var(--muted);font-size:12px">j</span></td>
+        <td style="width:140px"><div class="durbar"><span style="width:${pct}%"></span></div></td>
+        <td>${st}</td>
+        <td style="text-align:right"><button class="btn sm" onclick="event.stopPropagation();openArretModal('${p.id}')">＋ Arrêt</button></td>
+      </tr>`;
+    }).join('')+'</tbody>';
+}
+
+/* ============ STATS ============ */
+function renderStats(){
+  const metric=document.getElementById('statMetric').value;
+  const period=document.getElementById('statPeriod').value;
+  renderNatureBars(document.getElementById('statNature'),metric,period,false);
+  // synthèse
+  const data=natureAgg(period);
+  const totalC=data.reduce((n,d)=>n+d.count,0);
+  const totalD=data.reduce((n,d)=>n+d.days,0);
+  document.getElementById('statSummary').textContent=`${totalC} arrêt(s) · ${totalD} jour(s) cumulés`;
+  const t=document.getElementById('statTable');
+  if(totalC===0){ t.innerHTML='<div class="empty"><div class="big">Aucune donnée</div></div>'; return; }
+  t.innerHTML='<table class="tbl"><thead><tr><th>Nature</th><th>Nb d\'arrêts</th><th>% des arrêts</th><th>Jours cumulés</th><th>Durée moyenne</th></tr></thead><tbody>'+
+    data.filter(d=>d.count>0).sort((a,b)=>b.count-a.count).map(d=>`<tr>
+      <td><span class="ntag"><span class="dot" style="background:${d.color}"></span>${d.label}</span></td>
+      <td><b>${d.count}</b></td>
+      <td style="color:var(--muted)">${totalC?Math.round(d.count/totalC*100):0}%</td>
+      <td><b>${d.days}</b> j</td>
+      <td style="color:var(--muted)">${d.count?Math.round(d.days/d.count):0} j</td>
+    </tr>`).join('')+'</tbody></table>';
+}
+function natureAgg(period){
+  const cutoff = period==='all'?null:new Date(Date.now()-parseInt(period)*86400000);
+  const map={}; NATURES.forEach(n=>map[n.id]={...n,count:0,days:0});
+  for(const ar of state.arrets){
+    if(cutoff && parseD(ar.start)<cutoff) continue;
+    const k=natureOf(ar.nature).id;
+    if(!map[k]) map[k]={...natureOf(ar.nature),count:0,days:0};
+    map[k].count++; map[k].days+=arretDuration(ar);
+  }
+  return Object.values(map);
+}
+function renderNatureBars(el,metric,period,compact){
+  const data=natureAgg(period).filter(d=>d.count>0).sort((a,b)=> (metric==='days'?b.days-a.days:b.count-a.count));
+  if(data.length===0){ el.innerHTML='<div class="empty">Aucune blessure enregistrée.</div>'; return; }
+  const max=Math.max(...data.map(d=>metric==='days'?d.days:d.count));
+  el.innerHTML=data.map(d=>{
+    const val=metric==='days'?d.days:d.count;
+    const pct=Math.round(val/max*100);
+    return `<div class="statrow">
+      <div class="lab"><span class="dot" style="background:${d.color}"></span>${d.label}</div>
+      <div class="statbar"><span style="width:${pct}%;background:${d.color}"></span></div>
+      <div class="n">${val}<div class="sub">${metric==='days'?'jours':'arrêts'}</div></div>
+    </div>`;
+  }).join('');
+}
+
+/* ============ HELPERS ============ */
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+function switchTab(t){
+  currentTab=t;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===t));
+  ['dash','arrets','players','stats'].forEach(v=>document.getElementById('view-'+v).style.display=v===t?'block':'none');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function openModal(html){ document.getElementById('modalBox').innerHTML=html; document.getElementById('overlay').classList.add('open'); }
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
+
+/* ---- Ajouter / éditer un arrêt ---- */
+let arretForm={};
+function openArretModal(presetPlayer,editId){
+  const ed=editId?state.arrets.find(x=>x.id===editId):null;
+  arretForm=ed?{...ed}:{id:null,playerId:presetPlayer||'',nature:'musculaire',detail:'',start:todayStr(),end:'',status:'ongoing',note:''};
+  const opts=state.players.slice().sort((a,b)=>a.num-b.num).map(p=>`<option value="${p.id}" ${p.id===arretForm.playerId?'selected':''}>#${p.num} — ${esc(p.name)} (${p.pos})</option>`).join('');
+  const natOpts=NATURES.map(n=>`<option value="${n.id}" ${n.id===arretForm.nature?'selected':''}>${n.label}</option>`).join('');
+  openModal(`
+    <div class="modal-h"><h3>${ed?'Éditer l\'arrêt':'Nouvel arrêt'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="fld"><label>Joueur</label><select id="af_player">${opts}</select></div>
+      <div class="row2">
+        <div class="fld"><label>Nature de la blessure</label><select id="af_nature">${natOpts}</select></div>
+        <div class="fld"><label>Statut</label>
+          <select id="af_status">
+            <option value="ongoing" ${arretForm.status==='ongoing'?'selected':''}>En cours</option>
+            <option value="renewed" ${arretForm.status==='renewed'?'selected':''}>Renouvelé (prolongé)</option>
+            <option value="back" ${arretForm.status==='back'?'selected':''}>Repris / apte</option>
+          </select>
+        </div>
+      </div>
+      <div class="fld"><label>Détail / diagnostic</label><input id="af_detail" value="${esc(arretForm.detail)}" placeholder="ex. déchirure ischio-jambier droit"></div>
+      <div class="row2">
+        <div class="fld"><label>Début de l'arrêt</label><input type="date" id="af_start" value="${arretForm.start}"></div>
+        <div class="fld"><label>Fin prévue</label><input type="date" id="af_end" value="${arretForm.end||''}"><div class="hintline">Laisser vide si inconnue → marqué « à statuer ».</div></div>
+      </div>
+      <div class="fld"><label>Note (facultatif)</label><textarea id="af_note" placeholder="Protocole, examens, échéances…">${esc(arretForm.note)}</textarea></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="saveArret()">${ed?'Enregistrer':'Ajouter'}</button>
+    </div>
+  `);
+}
+function saveArret(){
+  const playerId=document.getElementById('af_player').value;
+  const start=document.getElementById('af_start').value;
+  if(!playerId){ alert("Sélectionnez un joueur."); return; }
+  if(!start){ alert("Indiquez la date de début."); return; }
+  const end=document.getElementById('af_end').value;
+  if(end && parseD(end)<parseD(start)){ alert("La date de fin ne peut pas précéder le début."); return; }
+  const data={
+    playerId, nature:document.getElementById('af_nature').value,
+    detail:document.getElementById('af_detail').value.trim(),
+    start, end:end||'', status:document.getElementById('af_status').value,
+    note:document.getElementById('af_note').value.trim()
+  };
+  if(arretForm.id){ const i=state.arrets.findIndex(x=>x.id===arretForm.id); state.arrets[i]={...state.arrets[i],...data}; }
+  else{ state.arrets.push({id:uid(),...data}); }
+  save(); closeModal(); renderAll();
+}
+function deleteArret(id){
+  if(!confirm("Supprimer cet arrêt ?")) return;
+  state.arrets=state.arrets.filter(x=>x.id!==id); save(); renderAll();
+}
+
+/* ---- Statuer : renouveler ou reprendre ---- */
+function decideArret(id){
+  const ar=state.arrets.find(x=>x.id===id); if(!ar) return;
+  const p=playerById(ar.playerId); const v=arretView(ar);
+  openModal(`
+    <div class="modal-h"><h3>Statuer sur l'arrêt</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="note" style="margin-bottom:14px">
+        <b style="color:var(--txt);font-size:15px">#${p.num} ${esc(p.name)}</b> — ${esc(ar.detail||natureOf(ar.nature).label)}<br>
+        ${fmtD(ar.start)} → ${fmtD(ar.end)} · durée actuelle <b>${v.dur} j</b>
+      </div>
+      <div class="section-title" style="margin-top:0">Option 1 · Renouveler (prolonger l'arrêt)</div>
+      <div class="fld"><label>Nouvelle date de fin prévue</label><input type="date" id="dc_newend" value="${ar.end||todayStr()}"></div>
+      <button class="btn primary" style="width:100%" onclick="applyRenew('${id}')">↻ Renouveler jusqu'à cette date</button>
+      <div style="height:1px;background:var(--line);margin:18px 0"></div>
+      <div class="section-title" style="margin-top:0">Option 2 · Reprise du joueur</div>
+      <div class="fld"><label>Date de reprise (fin réelle)</label><input type="date" id="dc_back" value="${ar.end||todayStr()}"></div>
+      <button class="btn" style="width:100%;border-color:var(--green-d);color:#74e6ab" onclick="applyBack('${id}')">✓ Marquer comme repris / apte</button>
+    </div>
+    <div class="modal-f"><button class="btn ghost" onclick="closeModal()">Fermer</button></div>
+  `);
+}
+function applyRenew(id){
+  const ar=state.arrets.find(x=>x.id===id); if(!ar) return;
+  const ne=document.getElementById('dc_newend').value;
+  if(!ne){ alert("Indiquez la nouvelle date de fin."); return; }
+  if(parseD(ne)<parseD(ar.start)){ alert("La fin ne peut pas précéder le début."); return; }
+  ar.end=ne; ar.status='renewed';
+  save(); closeModal(); renderAll();
+}
+function applyBack(id){
+  const ar=state.arrets.find(x=>x.id===id); if(!ar) return;
+  const bd=document.getElementById('dc_back').value;
+  if(!bd){ alert("Indiquez la date de reprise."); return; }
+  if(parseD(bd)<parseD(ar.start)){ alert("La reprise ne peut pas précéder le début."); return; }
+  ar.end=bd; ar.status='back';
+  save(); closeModal(); renderAll();
+}
+
+/* ---- Fiche joueur ---- */
+function showPlayer(id){
+  const a=analyze(); const p=playerById(id); const s=a.per[id];
+  const mine=state.arrets.filter(x=>x.playerId===id).sort((x,y)=>parseD(y.start)-parseD(x.start));
+  openModal(`
+    <div class="modal-h"><h3 style="font-size:17px">Fiche joueur</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="pl" style="gap:13px">
+        <div class="av" style="width:50px;height:50px;font-size:20px">${p.num}</div>
+        <div><div class="nm" style="font-size:19px;font-family:'Archivo'">${esc(p.name)}</div>
+        <div class="po" style="font-size:13px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${POSTES[p.pos]};margin-right:5px"></span>${p.pos}</div></div>
+        <div style="margin-left:auto;display:flex;gap:6px"><button class="btn sm" onclick="openPlayerModal('${p.id}')">Éditer</button><button class="btn sm primary" onclick="openArretModal('${p.id}')">＋ Arrêt</button></div>
+      </div>
+      <div class="mini-stats">
+        <div class="mini"><div class="v" style="color:var(--blue)">${s.days}</div><div class="l">Jours indispo</div></div>
+        <div class="mini"><div class="v">${s.episodes}</div><div class="l">Arrêts</div></div>
+        <div class="mini"><div class="v" style="color:${s.ongoing?'var(--amber)':'var(--green)'}">${s.ongoing?'Indispo':'Apte'}</div><div class="l">Statut</div></div>
+      </div>
+      <div class="section-title">Historique des arrêts</div>
+      ${mine.length? '<table class="tbl"><tbody>'+mine.map(ar=>{const v=arretView(ar);const n=natureOf(ar.nature);return `<tr>
+        <td><span class="ntag"><span class="dot" style="background:${n.color}"></span>${n.label}</span>${ar.detail?`<div style="font-size:11.5px;color:var(--muted);margin-top:3px">${esc(ar.detail)}</div>`:''}</td>
+        <td style="white-space:nowrap;color:var(--muted);font-size:12px">${fmtD(ar.start)}<br>→ ${fmtD(ar.end)}</td>
+        <td><b>${v.dur}</b> j</td>
+        <td>${statusBadge(ar,v)}</td>
+        <td style="text-align:right"><button class="btn sm danger" onclick="deleteArret('${ar.id}');closeModal();showPlayer('${id}')">✕</button></td>
+      </tr>`;}).join('')+'</tbody></table>' : '<div class="note">Aucun arrêt enregistré.</div>'}
+    </div>
+  `);
+}
+
+/* ---- Joueur ---- */
+function openPlayerModal(id){
+  const p=id?playerById(id):{id:null,num:'',name:'',pos:'Milieu'};
+  openModal(`
+    <div class="modal-h"><h3>${id?'Éditer le joueur':'Ajouter un joueur'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="row2">
+        <div class="fld"><label>Numéro</label><input type="number" id="pf_num" value="${p.num}" min="1" max="99"></div>
+        <div class="fld"><label>Poste</label><select id="pf_pos">${['Gardien','Défenseur','Milieu','Attaquant'].map(x=>`<option ${x===p.pos?'selected':''}>${x}</option>`).join('')}</select></div>
+      </div>
+      <div class="fld"><label>Nom</label><input id="pf_name" value="${esc(p.name)}" placeholder="Prénom Nom"></div>
+    </div>
+    <div class="modal-f">
+      ${id?`<button class="btn danger" style="margin-right:auto" onclick="deletePlayer('${id}')">Supprimer</button>`:''}
+      <button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="savePlayer('${id||''}')">Enregistrer</button>
+    </div>
+  `);
+}
+function savePlayer(id){
+  const num=parseInt(document.getElementById('pf_num').value)||0;
+  const name=document.getElementById('pf_name').value.trim();
+  const pos=document.getElementById('pf_pos').value;
+  if(!name){ alert("Indiquez le nom."); return; }
+  if(id){ const p=playerById(id); p.num=num; p.name=name; p.pos=pos; }
+  else{ state.players.push({id:uid(),num,name,pos}); }
+  save(); closeModal(); renderAll();
+}
+function deletePlayer(id){
+  const n=state.arrets.filter(x=>x.playerId===id).length;
+  if(!confirm("Supprimer ce joueur"+(n?` et ses ${n} arrêt(s)`:'')+" ?")) return;
+  state.players=state.players.filter(p=>p.id!==id);
+  state.arrets=state.arrets.filter(x=>x.playerId!==id);
+  save(); closeModal(); renderAll();
+}
+
+/* ---- Nom ---- */
+function openClubName(){
+  openModal(`<div class="modal-h"><h3>Nom de la structure</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b"><div class="fld"><label>Intitulé</label><input id="cn_name" value="${esc(state.club)}"></div></div>
+    <div class="modal-f"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" onclick="saveClub()">Enregistrer</button></div>`);
+}
+function saveClub(){ state.club=document.getElementById('cn_name').value.trim()||'Cellule médicale'; save(); closeModal(); renderAll(); }
+
+/* ---- Import / Export ---- */
+function exportData(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download='arrets_'+todayStr()+'.json'; a.click(); URL.revokeObjectURL(url);
+}
+function importData(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{
+    const d=JSON.parse(r.result);
+    if(!d.players||!d.arrets) throw new Error("Format invalide");
+    if(!confirm("Remplacer les données actuelles ?")) return;
+    state={club:d.club||'Cellule médicale',players:d.players,arrets:d.arrets};
+    save(); renderAll(); alert("Données importées.");
+  }catch(e){ alert("Fichier illisible : "+e.message); } ev.target.value=''; };
+  r.readAsText(file);
+}
+
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+(async()=>{ await load(); renderAll(); })();
+</script>
+</body>
+</html>
