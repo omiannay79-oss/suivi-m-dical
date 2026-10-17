@@ -180,6 +180,12 @@ select.filter:focus{outline:none;border-color:var(--accent)}
 .note{font-size:12.5px;color:var(--muted);line-height:1.55}
 .foot{text-align:center;color:var(--muted2);font-size:12px;margin-top:30px;line-height:1.7}
 
+.ijin{background:var(--bg2);border:1px solid var(--line2);color:var(--txt);padding:6px 8px;border-radius:7px;font-family:inherit;font-size:12.5px}
+.ijin:focus{outline:none;border-color:var(--accent)}
+.atchip{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;padding:1px 7px;border-radius:12px;vertical-align:middle}
+.atchip.ok{background:rgba(61,219,138,.15);color:#74e6ab;border:1px solid var(--green-d)}
+.atchip.ko{background:rgba(255,87,101,.12);color:#ff8a94;border:1px solid var(--red-d)}
+.atchip.no{background:var(--surface2);color:var(--muted);border:1px solid var(--line2)}
 @media(max-width:780px){.kpis{grid-template-columns:1fr 1fr}.row2,.row3{grid-template-columns:1fr}.statrow{grid-template-columns:120px 1fr 56px}}
 @media print{body{background:#fff;color:#000}header.topbar,nav.tabs,.toolbar,.btn,.overlay{display:none!important}.panel{border-color:#ccc}}
 </style>
@@ -214,6 +220,7 @@ select.filter:focus{outline:none;border-color:var(--accent)}
     <div class="tab" data-tab="arrets" onclick="switchTab('arrets')">🩹 Arrêts <span class="cnt" id="tabArretsCnt">0</span></div>
     <div class="tab" data-tab="players" onclick="switchTab('players')">⚕ Indisponibilités <span class="cnt" id="tabPlayersCnt">0</span></div>
     <div class="tab" data-tab="stats" onclick="switchTab('stats')">📊 Statistiques</div>
+    <div class="tab" data-tab="ij" onclick="switchTab('ij')">💶 IJ / Subrogation</div>
   </nav>
 
   <!-- DASHBOARD -->
@@ -306,6 +313,11 @@ select.filter:focus{outline:none;border-color:var(--accent)}
       <div class="panel-h"><h2>📋 Synthèse chiffrée</h2></div>
       <div class="panel-b" id="statTable" style="padding:0"></div>
     </div>
+  </section>
+
+  <!-- IJ / SUBROGATION (administrateur) -->
+  <section id="view-ij" style="display:none">
+    <div id="ijContent"></div>
   </section>
 
   <div class="foot">
@@ -518,6 +530,7 @@ function renderAll(){
   document.getElementById('clubTitle').textContent=state.club;
 
   renderDash(a); renderArrets(); renderPlayers(a); renderStats();
+  if(currentTab==='ij') renderIJ();
 }
 
 /* ============ DASHBOARD ============ */
@@ -601,7 +614,7 @@ function renderArrets(){
       const p=playerById(ar.playerId); const n=natureOf(ar.nature);
       return `<tr>
         <td><div class="pl"><div class="av">${p?p.num:'?'}</div><div><div class="nm">${p?esc(p.name):'—'}</div><div class="po">${p?p.pos:''}</div></div></div></td>
-        <td><span class="ntag"><span class="dot" style="background:${n.color}"></span>${n.label}</span>${ar.detail?`<div style="font-size:12px;color:var(--muted);margin-top:4px">${esc(ar.detail)}</div>`:''}</td>
+        <td><span class="ntag"><span class="dot" style="background:${n.color}"></span>${n.label}</span>${atChipStaff(ar)}${ar.detail?`<div style="font-size:12px;color:var(--muted);margin-top:4px">${esc(ar.detail)}</div>`:''}</td>
         <td style="color:var(--muted);white-space:nowrap">${fmtD(ar.start)}</td>
         <td style="color:var(--muted);white-space:nowrap">${fmtD(ar.end)}</td>
         <td><b>${v.dur}</b> j</td>
@@ -716,7 +729,8 @@ function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;
 function switchTab(t){
   currentTab=t;
   document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===t));
-  ['dash','arrets','players','stats'].forEach(v=>document.getElementById('view-'+v).style.display=v===t?'block':'none');
+  ['dash','arrets','players','stats','ij'].forEach(v=>document.getElementById('view-'+v).style.display=v===t?'block':'none');
+  if(t==='ij') renderIJ();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function openModal(html){ document.getElementById('modalBox').innerHTML=html; document.getElementById('overlay').classList.add('open'); }
@@ -726,7 +740,7 @@ function closeModal(){ document.getElementById('overlay').classList.remove('open
 let arretForm={};
 function openArretModal(presetPlayer,editId){
   const ed=editId?state.arrets.find(x=>x.id===editId):null;
-  arretForm=ed?{...ed}:{id:null,playerId:presetPlayer||'',nature:'musculaire',detail:'',start:todayStr(),end:'',status:'ongoing',note:''};
+  arretForm=ed?{...ed}:{id:null,playerId:presetPlayer||'',nature:'musculaire',detail:'',start:todayStr(),end:'',status:'ongoing',note:'',at:'',datDate:''};
   const opts=state.players.slice().sort((a,b)=>a.num-b.num).map(p=>`<option value="${p.id}" ${p.id===arretForm.playerId?'selected':''}>#${p.num} — ${esc(p.name)} (${p.pos})</option>`).join('');
   const natOpts=NATURES.map(n=>`<option value="${n.id}" ${n.id===arretForm.nature?'selected':''}>${n.label}</option>`).join('');
   openModal(`
@@ -748,6 +762,15 @@ function openArretModal(presetPlayer,editId){
         <div class="fld"><label>Début de l'arrêt</label><input type="date" id="af_start" value="${arretForm.start}"></div>
         <div class="fld"><label>Fin prévue</label><input type="date" id="af_end" value="${arretForm.end||''}"><div class="hintline">Laisser vide si inconnue → marqué « à statuer ».</div></div>
       </div>
+      <div class="row2">
+        <div class="fld"><label>Accident du travail</label>
+          <select id="af_at">
+            <option value="" ${!arretForm.at?'selected':''}>À préciser</option>
+            <option value="oui" ${arretForm.at==='oui'?'selected':''}>Oui — accident du travail</option>
+            <option value="non" ${arretForm.at==='non'?'selected':''}>Non (maladie / hors AT)</option>
+          </select></div>
+        <div class="fld"><label>Envoi déclaration AT (CPAM)</label><input type="date" id="af_dat" value="${arretForm.datDate||''}"><div class="hintline">Délai : 48 h après l'accident.</div></div>
+      </div>
       <div class="fld"><label>Note (facultatif)</label><textarea id="af_note" placeholder="Protocole, examens, échéances…">${esc(arretForm.note)}</textarea></div>
     </div>
     <div class="modal-f">
@@ -767,7 +790,9 @@ function saveArret(){
     playerId, nature:document.getElementById('af_nature').value,
     detail:document.getElementById('af_detail').value.trim(),
     start, end:end||'', status:document.getElementById('af_status').value,
-    note:document.getElementById('af_note').value.trim()
+    note:document.getElementById('af_note').value.trim(),
+    at:document.getElementById('af_at').value,
+    datDate:document.getElementById('af_dat').value||''
   };
   if(arretForm.id){ const i=state.arrets.findIndex(x=>x.id===arretForm.id); state.arrets[i]={...state.arrets[i],...data}; }
   else{ state.arrets.push({id:uid(),...data}); }
@@ -906,6 +931,224 @@ function importData(ev){
     if(!confirm("Remplacer les données actuelles ?")) return;
     state={club:d.club||'US Créteil Football',players:d.players,arrets:d.arrets};
     save(); renderAll(); alert("Données importées.");
+  }catch(e){ alert("Fichier illisible : "+e.message); } ev.target.value=''; };
+  r.readAsText(file);
+}
+
+function atChipStaff(ar){
+  if(ar.nature==='maladie' || ar.at==='non') return '<span class="atchip no">hors AT</span>';
+  if(ar.at==='oui') return ar.datDate?'<span class="atchip ok">AT · DAT '+fmtD(ar.datDate)+'</span>':'<span class="atchip ko">AT · DAT à envoyer</span>';
+  return '<span class="atchip ko">AT ?</span>';
+}
+
+/* ============ MODULE IJ / SUBROGATION (accident du travail) ============
+   - Les salaires et bases IJ restent UNIQUEMENT sur l'appareil de l'administrateur
+     (localStorage "suiviMedical.ij.v1"), jamais envoyés sur la base commune.
+   - Les champs AT (accident du travail oui/non + date d'envoi de la déclaration)
+     sont stockés sur l'arrêt et partagés avec le staff.
+*/
+const IJ_KEY = "suiviMedical.ij.v1";
+const IJ_HASH_KEY = "suiviMedical.ijAdmin";
+const IJ_DEFAULT_PARAMS = { pass:48060, tauxPlafond:0.00834, diviseur:30.42, t1:0.60, t2:0.80, plafNet:0.79, csg:0.062, decalage:1, maintienJours:90 };
+let ij = loadIJ();
+let ijUnlocked = false;
+
+function loadIJ(){
+  try{ const raw=localStorage.getItem(IJ_KEY); if(raw){ const d=JSON.parse(raw); d.params={...IJ_DEFAULT_PARAMS,...(d.params||{})}; d.salaries=d.salaries||{}; d.bases=d.bases||{}; if(d.includeUnconfirmed===undefined) d.includeUnconfirmed=true; return d; } }catch(e){}
+  return { params:{...IJ_DEFAULT_PARAMS}, salaries:{}, bases:{}, includeUnconfirmed:true };
+}
+function saveIJ(){ try{ localStorage.setItem(IJ_KEY, JSON.stringify(ij)); }catch(e){ alert("Enregistrement local impossible : "+e.message); } }
+
+async function sha256(t){
+  const b=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+async function ijUnlock(){
+  const v=(document.getElementById('ij_code')||{}).value||'';
+  if(v.length<4){ alert("Code de 4 caractères minimum."); return; }
+  const h=await sha256(v.trim());
+  const stored=localStorage.getItem(IJ_HASH_KEY);
+  if(!stored){ localStorage.setItem(IJ_HASH_KEY,h); ijUnlocked=true; renderIJ(); return; }
+  if(h===stored){ ijUnlocked=true; renderIJ(); } else { alert("Code incorrect."); }
+}
+function ijLock(){ ijUnlocked=false; renderIJ(); }
+
+const eur=n=>(n==null||isNaN(n))?'—':n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:2});
+const eur0=n=>(n==null||isNaN(n))?'—':n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function monthKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function monthLabel(k){ const [y,m]=k.split('-'); return new Date(+y,+m-1,1).toLocaleDateString('fr-FR',{month:'short',year:'numeric'}); }
+function numOrNull(v){ const n=parseFloat(String(v).replace(',','.')); return isNaN(n)||n<=0?null:n; }
+
+function ijCalc(ar){
+  const P=ij.params, p=playerById(ar.playerId), sal=ij.salaries[ar.playerId]||{}, b=ij.bases[ar.id]||{};
+  const start=parseD(ar.start); if(!start) return null;
+  const end=ar.end?parseD(ar.end):startOfToday();
+  const days=Math.max(1,daysBetween(start,end)+1);
+  const ijDays=Math.max(0,days-P.decalage);
+  const contrat=numOrNull(sal.contrat);
+  const m1=numOrNull(b.m1);
+  const base=m1||contrat;
+  const res={ar,p,days,ijDays,contrat,base,baseSource:m1?'M-1 réel':(contrat?'contrat':'—'),statut:sal.statut||'federal',
+             j60:Math.min(ijDays,28), j80:Math.max(0,ijDays-28), sjr:null, ij60:null, ij80:null, brut:null, csg:null, net:null, maintien:null, reste:null, months:{}};
+  if(!base) return res;
+  res.sjr=Math.min(base/P.diviseur, P.pass*P.tauxPlafond);
+  res.ij60=res.sjr*P.t1; res.ij80=Math.min(res.sjr*P.t2, res.sjr*P.plafNet);
+  res.brut=res.j60*res.ij60+res.j80*res.ij80; res.csg=res.brut*P.csg; res.net=res.brut-res.csg;
+  if(contrat){ res.maintien=contrat/P.diviseur*days; res.reste=res.maintien-res.brut; }
+  const ijStart=addDays(start,P.decalage);
+  for(let k=0;k<ijDays;k++){ const d=addDays(ijStart,k); const mk=monthKey(d); res.months[mk]=(res.months[mk]||0)+(k<28?res.ij60:res.ij80)*(1-P.csg); }
+  return res;
+}
+function ijEligible(ar){
+  if(ar.nature==='maladie') return false;
+  if(ar.at==='non') return false;
+  if(!ar.at && !ij.includeUnconfirmed) return false;
+  return true;
+}
+function ijAlerts(){
+  const out=[]; const unconf=[];
+  for(const ar of state.arrets){
+    if(ar.nature==='maladie' || ar.at==='non') continue;
+    const p=playerById(ar.playerId); const who=p?`#${p.num} ${esc(p.name)}`:'—'; const v=arretView(ar);
+    if(!ar.at) unconf.push(p?esc(p.name):'—');
+    if(ar.at==='oui' && !ar.datDate) out.push({crit:true,who,msg:"AT sans date d'envoi de la déclaration CPAM"});
+    if(ar.at==='oui' && ar.datDate){ const late=daysBetween(parseD(ar.start),parseD(ar.datDate)); if(late>2) out.push({crit:true,who,msg:`Déclaration envoyée ${late} j après le début (délai 48 h) : risque de refus / maintien SJF contestable`}); }
+    if(v.display!=='back' && v.end && v.daysToEnd<0) out.push({crit:true,who,msg:`Arrêt échu depuis ${Math.abs(v.daysToEnd)} j sans prolongation : IJ non couvertes après le ${fmtD(ar.end)}`});
+    if(v.display!=='back' && !v.end) out.push({crit:true,who,msg:"Arrêt sans date de fin : calcul arrêté à aujourd'hui"});
+    const sal=ij.salaries[ar.playerId]; if(ijEligible(ar) && !(sal&&numOrNull(sal.contrat))) out.push({crit:false,who,msg:"Salaire contrat non renseigné : calcul impossible"});
+  }
+  out.sort((a,b)=>(b.crit?1:0)-(a.crit?1:0));
+  if(unconf.length) out.push({crit:false,who:`${unconf.length} arrêt(s) : accident du travail non confirmé`,msg:[...new Set(unconf)].join(' · ')+" — à préciser dans chaque arrêt (Oui / Non + date d'envoi de la déclaration)."});
+  return out;
+}
+
+function ijSet(kind,id,field,val){
+  if(kind==='sal'){ ij.salaries[id]=ij.salaries[id]||{}; ij.salaries[id][field]=val; }
+  else if(kind==='base'){ ij.bases[id]=ij.bases[id]||{}; ij.bases[id][field]=val; }
+  else if(kind==='param'){ const n=parseFloat(String(val).replace(',','.')); if(!isNaN(n)) ij.params[field]=n; }
+  saveIJ(); renderIJ();
+}
+function ijToggleUnconfirmed(c){ ij.includeUnconfirmed=c; saveIJ(); renderIJ(); }
+
+function renderIJ(){
+  const el=document.getElementById('ijContent'); if(!el) return;
+  if(!ijUnlocked){
+    const first=!localStorage.getItem(IJ_HASH_KEY);
+    el.innerHTML=`<div class="panel" style="max-width:460px;margin:30px auto"><div class="panel-h"><h2>🔒 Accès administrateur</h2></div>
+      <div class="panel-b" style="padding-top:16px">
+        <div class="note" style="margin-bottom:14px">${first?"Première ouverture sur cet appareil : choisissez un code administrateur.":"Saisissez votre code administrateur."}<br>Les salaires saisis ici restent sur cet appareil uniquement : ils ne sont jamais envoyés sur la base commune du staff.</div>
+        <div class="fld"><label>Code</label><input type="password" id="ij_code" onkeydown="if(event.key==='Enter')ijUnlock()" autocomplete="off"></div>
+        <button class="btn primary" style="width:100%" onclick="ijUnlock()">${first?'Définir le code et ouvrir':'Ouvrir'}</button>
+      </div></div>`;
+    return;
+  }
+  const P=ij.params;
+  const rows=state.arrets.filter(ijEligible).map(ijCalc).filter(Boolean).sort((a,b)=>parseD(a.ar.start)-parseD(b.ar.start));
+  const sum=k=>rows.reduce((n,r)=>n+(r[k]||0),0);
+  const netBack=rows.filter(r=>r.ar.status==='back').reduce((n,r)=>n+(r.net||0),0);
+  const alerts=ijAlerts();
+  const months=[...new Set(rows.flatMap(r=>Object.keys(r.months)))].sort();
+  const mTot=k=>rows.reduce((n,r)=>n+(r.months[k]||0),0);
+  const inp=(kind,id,field,val,w)=>`<input class="ijin" style="width:${w||88}px" value="${val==null?'':esc(val)}" onchange="ijSet('${kind}','${id}','${field}',this.value)">`;
+  const atChip=ar=> ar.at==='oui'?'<span class="badge back" style="font-size:10px">AT</span>':'<span class="badge decide" style="font-size:10px">AT ?</span>';
+  // joueurs concernés + tous les joueurs pour les salaires
+  const players=state.players.slice().sort((a,b)=>a.num-b.num);
+
+  el.innerHTML=`
+  <div class="toolbar">
+    <label class="note" style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" ${ij.includeUnconfirmed?'checked':''} onchange="ijToggleUnconfirmed(this.checked)"> Inclure les arrêts dont l'AT n'est pas encore confirmé</label>
+    <div class="spacer"></div>
+    <button class="btn" onclick="ijExportCSV()">⭳ Export Excel (CSV)</button>
+    <button class="btn ghost" onclick="ijExportJSON()" title="Sauvegarde des salaires et bases IJ">⭳ Sauvegarde IJ</button>
+    <button class="btn ghost" onclick="document.getElementById('ijImport').click()" title="Restaurer salaires / bases IJ">⭱ Importer IJ</button>
+    <input type="file" id="ijImport" accept="application/json" style="display:none" onchange="ijImportJSON(event)">
+    <button class="btn ghost" onclick="ijLock()">🔒 Verrouiller</button>
+  </div>
+  <div class="kpis">
+    <div class="kpi k-days"><div class="lab">IJ brutes</div><div class="val" style="font-size:30px">${eur0(sum('brut'))}</div><div class="hint">${rows.length} arrêt(s) AT</div></div>
+    <div class="kpi k-back"><div class="lab">IJ nettes à encaisser</div><div class="val" style="font-size:30px">${eur0(sum('net'))}</div><div class="hint">dont ${eur0(netBack)} sur arrêts terminés</div></div>
+    <div class="kpi k-act"><div class="lab">Salaire maintenu</div><div class="val" style="font-size:30px">${eur0(sum('maintien'))}</div><div class="hint">maintien intégral SJF art. 38</div></div>
+    <div class="kpi k-alert"><div class="lab">Reste à charge club</div><div class="val" style="font-size:30px">${eur0(sum('reste'))}</div><div class="hint">maintien − IJ brutes</div></div>
+  </div>
+
+  <div class="panel"><div class="panel-h"><h2>⚠️ Contrôles AT / subrogation</h2><span class="desc">${alerts.length} point(s)</span></div>
+    <div class="panel-b">${alerts.length?alerts.map(a=>`<div class="alertcard ${a.crit?'crit':'soon'}"><div class="ic">${a.crit?'⚠️':'🔔'}</div><div class="info"><b>${a.who}</b><div class="meta">${a.msg}</div></div></div>`).join(''):'<div class="empty">Aucun point bloquant.</div>'}</div></div>
+
+  <div class="panel"><div class="panel-h"><h2>💶 Calcul par arrêt</h2><span class="desc">Base = brut réel M-1 (primes incl.) si saisi, sinon salaire contrat. M-3 / M-2 : contrôle.</span></div>
+    <div class="panel-b" style="padding:0;overflow-x:auto"><table class="tbl" style="font-size:12.5px"><thead><tr>
+      <th>Joueur</th><th>AT</th><th>Arrêt</th><th>Jours</th><th>M-3 réel</th><th>M-2 réel</th><th>M-1 réel</th><th>Base</th><th>SJR</th><th>J 60 % / 80 %</th><th>IJ brutes</th><th>IJ nettes</th><th>Reste à charge</th></tr></thead><tbody>
+      ${rows.length?rows.map(r=>`<tr>
+        <td><div class="pl"><div class="av">${r.p?r.p.num:'?'}</div><div><div class="nm">${r.p?esc(r.p.name):'—'}</div><div class="po">${r.statut==='apprenti'?'Apprenti':'Fédéral'}</div></div></div></td>
+        <td>${atChip(r.ar)}</td>
+        <td style="white-space:nowrap;color:var(--muted)">${fmtD(r.ar.start)}<br>→ ${r.ar.end?fmtD(r.ar.end):"aujourd'hui"} ${statusBadge(r.ar,arretView(r.ar))}</td>
+        <td><b>${r.days}</b> j<div class="po">${r.ijDays} j IJ</div></td>
+        <td>${inp('base',r.ar.id,'m3',(ij.bases[r.ar.id]||{}).m3,78)}</td>
+        <td>${inp('base',r.ar.id,'m2',(ij.bases[r.ar.id]||{}).m2,78)}</td>
+        <td>${inp('base',r.ar.id,'m1',(ij.bases[r.ar.id]||{}).m1,78)}</td>
+        <td style="white-space:nowrap">${eur0(r.base)}<div class="po">${r.baseSource}</div></td>
+        <td style="white-space:nowrap">${eur(r.sjr)}</td>
+        <td style="white-space:nowrap">${r.j60} / ${r.j80}</td>
+        <td style="white-space:nowrap">${eur(r.brut)}</td>
+        <td style="white-space:nowrap"><b>${eur(r.net)}</b></td>
+        <td style="white-space:nowrap">${eur(r.reste)}</td>
+      </tr>`).join('')+`<tr style="font-weight:700"><td colspan="10">TOTAL</td><td>${eur(sum('brut'))}</td><td>${eur(sum('net'))}</td><td>${eur(sum('reste'))}</td></tr>`
+      :'<tr><td colspan="13"><div class="empty">Aucun arrêt AT à calculer.</div></td></tr>'}
+    </tbody></table></div></div>
+
+  <div class="panel"><div class="panel-h"><h2>📅 Échéancier mensuel</h2><span class="desc">IJ nettes par mois de rattachement · encaissement CPAM ≈ M+1</span></div>
+    <div class="panel-b" style="padding:0;overflow-x:auto">${months.length?`<table class="tbl" style="font-size:12.5px"><thead><tr><th>Joueur</th>${months.map(m=>`<th>${monthLabel(m)}</th>`).join('')}<th>Total</th></tr></thead><tbody>
+      ${rows.filter(r=>r.net).map(r=>`<tr><td>${r.p?esc(r.p.name):'—'}</td>${months.map(m=>`<td>${r.months[m]?eur0(r.months[m]):'—'}</td>`).join('')}<td><b>${eur0(r.net)}</b></td></tr>`).join('')}
+      <tr style="font-weight:700"><td>TOTAL</td>${months.map(m=>`<td>${eur0(mTot(m))}</td>`).join('')}<td>${eur0(sum('net'))}</td></tr></tbody></table>`:'<div class="empty">—</div>'}</div></div>
+
+  <div class="panel"><div class="panel-h"><h2>👤 Salaires contrat</h2><span class="desc">Brut mensuel prévu au contrat (base du maintien de salaire) · stocké sur cet appareil uniquement</span></div>
+    <div class="panel-b" style="padding:0;overflow-x:auto"><table class="tbl" style="font-size:12.5px"><thead><tr><th>Joueur</th><th>Brut mensuel contrat</th><th>Contrat</th></tr></thead><tbody>
+      ${players.map(p=>{const s=ij.salaries[p.id]||{};return `<tr><td><div class="pl"><div class="av">${p.num}</div><div class="nm">${esc(p.name)}</div></div></td>
+        <td>${inp('sal',p.id,'contrat',s.contrat,100)}</td>
+        <td><select class="ijin" onchange="ijSet('sal','${p.id}','statut',this.value)"><option value="federal" ${s.statut!=='apprenti'?'selected':''}>Fédéral</option><option value="apprenti" ${s.statut==='apprenti'?'selected':''}>Apprenti</option></select></td></tr>`;}).join('')}
+    </tbody></table></div></div>
+
+  <div class="panel"><div class="panel-h"><h2>⚙️ Paramètres</h2><span class="desc">À mettre à jour chaque 1er janvier (PASS)</span></div>
+    <div class="panel-b"><div class="row3" style="margin-top:12px">
+      ${[['pass','PASS annuel (€)'],['tauxPlafond','Plafond SJR (part du PASS)'],['diviseur','Diviseur salaire mensuel'],['t1','Taux J1 à J28'],['t2','Taux à partir de J29'],['plafNet','Plafond gain net (1 − 21 %)'],['csg','CSG/CRDS sur IJ'],['decalage','Jour accident payé club (j)'],['maintienJours','Maintien intégral SJF (j)']]
+        .map(([k,l])=>`<div class="fld"><label>${l}</label><input class="ijin" style="width:100%" value="${P[k]}" onchange="ijSet('param',null,'${k}',this.value)"></div>`).join('')}
+    </div>
+    <div class="note">Plafond SJR actuel : <b>${eur(P.pass*P.tauxPlafond)}</b> / jour. IJ = 60 % du SJR jusqu'au 28e jour, puis 80 % ramené au gain net (79 %). Compteur J29 propre à chaque arrêt. Salaire maintenu calculé sur le brut contrat (au-delà de ${P.maintienJours} j : maintien dans la limite des tranches A et B). Apprentis : le maintien relève du contrat d'apprentissage, à vérifier.</div></div></div>`;
+}
+
+function ijExportCSV(){
+  const rows=state.arrets.filter(ijEligible).map(ijCalc).filter(Boolean);
+  const n=v=>v==null||isNaN(v)?'':String(Math.round(v*100)/100).replace('.',',');
+  const head=['Joueur','N°','Contrat','AT','Date DAT','Début','Fin','Statut','Jours arrêt','Jours IJ','M-3 réel','M-2 réel','M-1 réel','Base retenue','Source base','SJR','Jours 60%','Jours 80%','IJ brutes','CSG/CRDS','IJ nettes','Salaire maintenu','Reste à charge'];
+  const lines=[head.join(';')];
+  for(const r of rows){ const b=ij.bases[r.ar.id]||{};
+    lines.push([r.p?r.p.name:'',r.p?r.p.num:'',r.statut,r.ar.at||'à préciser',r.ar.datDate||'',r.ar.start,r.ar.end||'',r.ar.status||'ongoing',r.days,r.ijDays,n(numOrNull(b.m3)),n(numOrNull(b.m2)),n(numOrNull(b.m1)),n(r.base),r.baseSource,n(r.sjr),r.j60,r.j80,n(r.brut),n(r.csg),n(r.net),n(r.maintien),n(r.reste)].map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')); }
+  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='IJ_AT_USC_'+todayStr()+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+function ijExportJSON(){
+  const blob=new Blob([JSON.stringify({type:'usc-ij',version:1,date:todayStr(),...ij},null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='sauvegarde_IJ_'+todayStr()+'.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+function normName(s){ return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z]/g,'').toUpperCase(); }
+function ijImportJSON(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{
+    const d=JSON.parse(r.result);
+    if(d.type!=='usc-ij') throw new Error("ce n'est pas un fichier IJ");
+    let matched=0, missing=[];
+    if(d.salaries) Object.assign(ij.salaries,d.salaries);
+    if(d.bases) Object.assign(ij.bases,d.bases);
+    if(d.params) ij.params={...ij.params,...d.params};
+    if(Array.isArray(d.salariesByName)){
+      for(const s of d.salariesByName){
+        const p=state.players.find(x=>normName(x.name)===normName(s.name) || (s.aliases||[]).some(a=>normName(a)===normName(x.name)));
+        if(p){ ij.salaries[p.id]={...(ij.salaries[p.id]||{}),contrat:s.contrat,statut:s.statut||'federal'}; matched++; } else missing.push(s.name);
+      }
+    }
+    saveIJ(); renderIJ();
+    alert("Import IJ effectué."+(d.salariesByName?`\n${matched} salaire(s) rattaché(s).`+(missing.length?`\nNon trouvés : ${missing.join(', ')}`:''):''));
   }catch(e){ alert("Fichier illisible : "+e.message); } ev.target.value=''; };
   r.readAsText(file);
 }
