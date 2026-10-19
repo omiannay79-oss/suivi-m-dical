@@ -180,6 +180,8 @@ select.filter:focus{outline:none;border-color:var(--accent)}
 .note{font-size:12.5px;color:var(--muted);line-height:1.55}
 .foot{text-align:center;color:var(--muted2);font-size:12px;margin-top:30px;line-height:1.7}
 
+body.ro [onclick^="openArretModal"],body.ro [onclick^="decideArret"],body.ro [onclick^="deleteArret"],body.ro [onclick^="openPlayerModal"],body.ro [onclick*="importFile"]{display:none!important}
+body.ro .brand{pointer-events:none}
 .ijin{background:var(--bg2);border:1px solid var(--line2);color:var(--txt);padding:6px 8px;border-radius:7px;font-family:inherit;font-size:12.5px}
 .ijin:focus{outline:none;border-color:var(--accent)}
 .atchip{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;padding:1px 7px;border-radius:12px;vertical-align:middle}
@@ -373,7 +375,9 @@ function seedPlayers(){
 */
 const CLOUD_KEY = "medical";          // clé du Blob (le tableau cartons utilisera "cartons")
 const API = "/api/data";
-let cloudOK = false;                   // true si le serveur répond
+let cloudOK = false;
+let userRole = 'staff';            // 'staff' | 'compta' | 'staff+admin' (renvoyé par le serveur)
+let readOnly = false;               // profil administration seul : arrêts en lecture seule                   // true si le serveur répond
 let saveTimer = null;
 
 function accessHeaders(){
@@ -383,7 +387,7 @@ function accessHeaders(){
 async function apiFetch(opts){
   let r = await fetch(API+"?key="+CLOUD_KEY, opts);
   if(r.status===403){
-    const code = prompt("Code d'accès de l'équipe :");
+    const code = prompt("Code d'accès (code d'équipe ou code administration) :");
     if(code){ localStorage.setItem('teamCode', code);
       r = await fetch(API+"?key="+CLOUD_KEY, {...opts, headers:{...(opts&&opts.headers||{}), ...accessHeaders()}}); }
   }
@@ -392,15 +396,22 @@ async function apiFetch(opts){
 function setSync(s){
   const el=document.getElementById('syncDot'); if(!el) return;
   const map={synced:['#3ddb8a','Synchronisé'],syncing:['#ffb22e','Enregistrement…'],error:['#ff5765','Hors-ligne (cet appareil)'],loading:['#4ea3ff','Chargement…']};
-  const [c,t]=map[s]||map.error; el.style.background=c; el.title=t;
+  let [c,t]=map[s]||map.error; if(readOnly && s==='synced') t='Lecture seule · administration'; el.style.background=c; el.title=t;
   const lab=document.getElementById('syncLabel'); if(lab) lab.textContent=t;
 }
 
+function applyRole(r){
+  const h=r && r.headers && r.headers.get('x-role');
+  userRole = h || 'staff';
+  readOnly = (userRole==='compta');
+  document.body.classList.toggle('ro', readOnly);
+}
 async function load(){
   setSync('loading');
   try{
     const r = await apiFetch({headers:{...accessHeaders()}});
     if(!r.ok) throw new Error('http');
+    applyRole(r);
     const data = await r.json();
     if(data && data.players){ state=data; }
     else { // base vide côté serveur : on initialise et on pousse
@@ -419,7 +430,7 @@ async function load(){
 }
 
 async function pushCloud(){
-  if(!cloudOK){ return; }
+  if(!cloudOK || readOnly){ return; }
   setSync('syncing');
   try{
     const r = await apiFetch({method:'POST',headers:{'Content-Type':'application/json',...accessHeaders()},body:JSON.stringify(state)});
@@ -441,6 +452,7 @@ async function refreshFromCloud(){
   try{
     const r = await apiFetch({headers:{...accessHeaders()}});
     if(!r.ok) throw new Error('http');
+    applyRole(r);
     const data = await r.json();
     if(data && data.players){ state=data; localStorage.setItem(STORE_KEY,JSON.stringify(state)); }
     setSync('synced'); renderAll();
@@ -942,13 +954,15 @@ function atChipStaff(ar){
 }
 
 /* ============ MODULE IJ / SUBROGATION (accident du travail) ============
-   - Les salaires et bases IJ restent UNIQUEMENT sur l'appareil de l'administrateur
-     (localStorage "suiviMedical.ij.v1"), jamais envoyés sur la base commune.
+   - Salaires et bases IJ stockés sur le serveur dans un compartiment séparé ("ij"),
+     accessible uniquement avec le CODE ADMINISTRATION (contrôlé côté serveur).
+     Le staff médical (code d'équipe seul) n'y a pas accès.
    - Les champs AT (accident du travail oui/non + date d'envoi de la déclaration)
      sont stockés sur l'arrêt et partagés avec le staff.
 */
-const IJ_KEY = "suiviMedical.ij.v1";
-const IJ_HASH_KEY = "suiviMedical.ijAdmin";
+const IJ_KEY = "suiviMedical.ij.v1";          // cache local
+const IJ_CODE_KEY = "ijAdminCode";            // code administration mémorisé sur l'appareil
+let ijSaveTimer = null, ijTried = false, ijSync = '';
 const IJ_DEFAULT_PARAMS = { pass:48060, tauxPlafond:0.00834, diviseur:30.42, t1:0.60, t2:0.80, plafNet:0.79, csg:0.062, decalage:1, maintienJours:90 };
 let ij = loadIJ();
 let ijUnlocked = false;
@@ -957,21 +971,56 @@ function loadIJ(){
   try{ const raw=localStorage.getItem(IJ_KEY); if(raw){ const d=JSON.parse(raw); d.params={...IJ_DEFAULT_PARAMS,...(d.params||{})}; d.salaries=d.salaries||{}; d.bases=d.bases||{}; if(d.includeUnconfirmed===undefined) d.includeUnconfirmed=true; return d; } }catch(e){}
   return { params:{...IJ_DEFAULT_PARAMS}, salaries:{}, bases:{}, includeUnconfirmed:true };
 }
-function saveIJ(){ try{ localStorage.setItem(IJ_KEY, JSON.stringify(ij)); }catch(e){ alert("Enregistrement local impossible : "+e.message); } }
-
-async function sha256(t){
-  const b=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
-  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+function ijNormalize(d){ d=d||{}; d.params={...IJ_DEFAULT_PARAMS,...(d.params||{})}; d.salaries=d.salaries||{}; d.bases=d.bases||{}; if(d.includeUnconfirmed===undefined) d.includeUnconfirmed=true; return d; }
+function ijCode(){ return localStorage.getItem(IJ_CODE_KEY) || (userRole==='compta' ? localStorage.getItem('teamCode') : '') || ''; }
+async function ijFetch(code, opts){
+  return fetch(API+"?key=ij", {...(opts||{}), headers:{...accessHeaders(), 'x-admin-code':code, ...((opts&&opts.headers)||{})}});
+}
+async function ijPull(code){
+  const r=await ijFetch(code,{cache:'no-store'});
+  if(r.status===403) return 'forbidden';
+  if(!r.ok) throw new Error('http '+r.status);
+  const data=await r.json();
+  if(data){ ij=ijNormalize(data); }
+  else { // compartiment vide : on y verse les données locales éventuelles
+    ij=ijNormalize(ij); await ijFetch(code,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ij)});
+  }
+  try{ localStorage.setItem(IJ_KEY, JSON.stringify(ij)); }catch(e){}
+  return 'ok';
+}
+function saveIJ(){
+  try{ localStorage.setItem(IJ_KEY, JSON.stringify(ij)); }catch(e){}
+  const code=ijCode(); if(!code) return;
+  ijSync='Enregistrement…';
+  clearTimeout(ijSaveTimer);
+  ijSaveTimer=setTimeout(async()=>{
+    try{
+      const r=await ijFetch(code,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ij)});
+      ijSync = r.ok ? 'Enregistré · partagé avec l\'administration' : 'Échec de l\'enregistrement ('+r.status+')';
+    }catch(e){ ijSync='Hors-ligne : enregistré sur cet appareil seulement'; }
+    const el=document.getElementById('ijSyncLabel'); if(el) el.textContent=ijSync;
+  },400);
 }
 async function ijUnlock(){
-  const v=(document.getElementById('ij_code')||{}).value||'';
-  if(v.length<4){ alert("Code de 4 caractères minimum."); return; }
-  const h=await sha256(v.trim());
-  const stored=localStorage.getItem(IJ_HASH_KEY);
-  if(!stored){ localStorage.setItem(IJ_HASH_KEY,h); ijUnlocked=true; renderIJ(); return; }
-  if(h===stored){ ijUnlocked=true; renderIJ(); } else { alert("Code incorrect."); }
+  const v=((document.getElementById('ij_code')||{}).value||'').trim();
+  if(!v){ alert("Saisissez le code administration."); return; }
+  try{
+    const res=await ijPull(v);
+    if(res==='forbidden'){ alert("Code administration incorrect."); return; }
+    localStorage.setItem(IJ_CODE_KEY, v); ijUnlocked=true; ijSync='Synchronisé'; renderIJ();
+  }catch(e){ alert("Serveur injoignable : "+e.message); }
 }
-function ijLock(){ ijUnlocked=false; renderIJ(); }
+async function ijAutoUnlock(){
+  if(ijTried) return; ijTried=true;
+  const code=ijCode(); if(!code) return;
+  try{ if(await ijPull(code)==='ok'){ ijUnlocked=true; ijSync='Synchronisé'; renderIJ(); } }catch(e){}
+}
+async function ijRefresh(){
+  if(!ijUnlocked || ijSaveTimer && ijSync==='Enregistrement…') return;
+  try{ if(await ijPull(ijCode())==='ok') renderIJ(); }catch(e){}
+}
+window.addEventListener('focus', ()=>{ if(currentTab==='ij') ijRefresh(); });
+function ijLock(){ ijUnlocked=false; ijTried=true; localStorage.removeItem(IJ_CODE_KEY); renderIJ(); }
 
 const eur=n=>(n==null||isNaN(n))?'—':n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:2});
 const eur0=n=>(n==null||isNaN(n))?'—':n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
@@ -1034,12 +1083,12 @@ function ijToggleUnconfirmed(c){ ij.includeUnconfirmed=c; saveIJ(); renderIJ(); 
 function renderIJ(){
   const el=document.getElementById('ijContent'); if(!el) return;
   if(!ijUnlocked){
-    const first=!localStorage.getItem(IJ_HASH_KEY);
-    el.innerHTML=`<div class="panel" style="max-width:460px;margin:30px auto"><div class="panel-h"><h2>🔒 Accès administrateur</h2></div>
+    if(!ijTried){ el.innerHTML='<div class="empty">Chargement…</div>'; ijAutoUnlock().then(()=>{ if(!ijUnlocked) renderIJ(); }); return; }
+    el.innerHTML=`<div class="panel" style="max-width:460px;margin:30px auto"><div class="panel-h"><h2>🔒 Accès administration</h2></div>
       <div class="panel-b" style="padding-top:16px">
-        <div class="note" style="margin-bottom:14px">${first?"Première ouverture sur cet appareil : choisissez un code administrateur.":"Saisissez votre code administrateur."}<br>Les salaires saisis ici restent sur cet appareil uniquement : ils ne sont jamais envoyés sur la base commune du staff.</div>
-        <div class="fld"><label>Code</label><input type="password" id="ij_code" onkeydown="if(event.key==='Enter')ijUnlock()" autocomplete="off"></div>
-        <button class="btn primary" style="width:100%" onclick="ijUnlock()">${first?'Définir le code et ouvrir':'Ouvrir'}</button>
+        <div class="note" style="margin-bottom:14px">Réservé à la direction et à la comptabilité. Saisissez le <b>code administration</b>.<br>Les salaires sont stockés dans un compartiment séparé du serveur : le staff médical n'y a pas accès.</div>
+        <div class="fld"><label>Code administration</label><input type="password" id="ij_code" onkeydown="if(event.key==='Enter')ijUnlock()" autocomplete="off"></div>
+        <button class="btn primary" style="width:100%" onclick="ijUnlock()">Ouvrir</button>
       </div></div>`;
     return;
   }
@@ -1058,7 +1107,9 @@ function renderIJ(){
   el.innerHTML=`
   <div class="toolbar">
     <label class="note" style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" ${ij.includeUnconfirmed?'checked':''} onchange="ijToggleUnconfirmed(this.checked)"> Inclure les arrêts dont l'AT n'est pas encore confirmé</label>
+    <span class="note" id="ijSyncLabel">${esc(ijSync)}</span>
     <div class="spacer"></div>
+    <button class="btn ghost" onclick="ijRefresh()" title="Recharger les salaires saisis par l'administration">↻</button>
     <button class="btn" onclick="ijExportCSV()">⭳ Export Excel (CSV)</button>
     <button class="btn ghost" onclick="ijExportJSON()" title="Sauvegarde des salaires et bases IJ">⭳ Sauvegarde IJ</button>
     <button class="btn ghost" onclick="document.getElementById('ijImport').click()" title="Restaurer salaires / bases IJ">⭱ Importer IJ</button>
@@ -1101,7 +1152,7 @@ function renderIJ(){
       ${rows.filter(r=>r.net).map(r=>`<tr><td>${r.p?esc(r.p.name):'—'}</td>${months.map(m=>`<td>${r.months[m]?eur0(r.months[m]):'—'}</td>`).join('')}<td><b>${eur0(r.net)}</b></td></tr>`).join('')}
       <tr style="font-weight:700"><td>TOTAL</td>${months.map(m=>`<td>${eur0(mTot(m))}</td>`).join('')}<td>${eur0(sum('net'))}</td></tr></tbody></table>`:'<div class="empty">—</div>'}</div></div>
 
-  <div class="panel"><div class="panel-h"><h2>👤 Salaires contrat</h2><span class="desc">Brut mensuel prévu au contrat (base du maintien de salaire) · stocké sur cet appareil uniquement</span></div>
+  <div class="panel"><div class="panel-h"><h2>👤 Salaires contrat</h2><span class="desc">Brut mensuel prévu au contrat (base du maintien de salaire) · visible direction + comptabilité uniquement</span></div>
     <div class="panel-b" style="padding:0;overflow-x:auto"><table class="tbl" style="font-size:12.5px"><thead><tr><th>Joueur</th><th>Brut mensuel contrat</th><th>Contrat</th></tr></thead><tbody>
       ${players.map(p=>{const s=ij.salaries[p.id]||{};return `<tr><td><div class="pl"><div class="av">${p.num}</div><div class="nm">${esc(p.name)}</div></div></td>
         <td>${inp('sal',p.id,'contrat',s.contrat,100)}</td>
