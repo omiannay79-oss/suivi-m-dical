@@ -272,6 +272,7 @@ select.filter:focus{outline:none;border-color:var(--pitch)}
       <span id="syncDot" style="width:9px;height:9px;border-radius:50%;background:#3d8bff" title="Chargement…"></span>
       <span id="syncLabel">Chargement…</span>
     </div>
+    <button class="btn ghost" onclick="openCodeModal(0)" title="Saisir le code d'accès">🔑 Code</button>
     <button class="btn ghost" onclick="refreshFromCloud()" title="Recharger la base commune">↻ Actualiser</button>
     <button class="btn primary" onclick="openCardModal()">＋ Carton</button>
     <button class="btn ghost" onclick="exportData()" title="Sauvegarder vos données dans un fichier">⭳ Exporter</button>
@@ -395,7 +396,7 @@ select.filter:focus{outline:none;border-color:var(--pitch)}
   </section>
 
   <div class="foot">
-    Données partagées en ligne (base commune), avec copie de secours sur cet appareil. Pensez à <b>Exporter</b> régulièrement pour conserver une sauvegarde.<br>
+    Données partagées en ligne (base commune), avec copie de secours sur cet appareil. · Version du 27/10/2026 (4) Pensez à <b>Exporter</b> régulièrement pour conserver une sauvegarde.<br>
     Règles appliquées : 3 jaunes sur 3 matchs différents en 3 mois max → 1 match · Carton rouge → 1 match automatique, puis total fixé par la commission · Commission le jeudi de la semaine qui suit le match · Effet : rouge = lundi suivant le match, cumul de jaunes = lundi suivant la commission.
   </div>
 </div>
@@ -452,17 +453,39 @@ function accessHeaders(){
   const c = localStorage.getItem('cartonsCode') || localStorage.getItem('teamCode');
   return c ? {'x-access-code': c} : {};
 }
+let needCode = 0;   // 403 = code manquant/faux, 405 = code en lecture seule
 async function apiFetch(opts){
-  let r = await fetch(API+"?key="+CLOUD_KEY, opts);
-  if(r.status===403 || r.status===405){
-    const msg = r.status===405
-      ? "Le code enregistré sur cet appareil donne un accès en LECTURE SEULE (profil administration) : les cartons ne peuvent pas être enregistrés en ligne.\n\nEntrez le code d'équipe (staff) :"
-      : "Code d'accès de l'équipe :";
-    const code = prompt(msg);
-    if(code){ localStorage.setItem('cartonsCode', code.trim());
-      r = await fetch(API+"?key="+CLOUD_KEY, {...opts, headers:{...(opts&&opts.headers||{}), ...accessHeaders()}}); }
-  }
+  const r = await fetch(API+"?key="+CLOUD_KEY, opts);
+  if(r.status===403 || r.status===405) needCode = r.status;
   return r;
+}
+function askCodeIfNeeded(){
+  if(!needCode) return;
+  const n = needCode; needCode = 0;
+  if(!document.getElementById('overlay').classList.contains('open')) openCodeModal(n);
+}
+function openCodeModal(status){
+  const why = status===405
+    ? "Le code enregistré sur cet appareil est en <b>lecture seule</b> (profil administration) : les cartons ne peuvent pas être enregistrés en ligne."
+    : status===403 ? "Code d'accès absent ou incorrect." : "Saisissez le code utilisé par l'appli cartons sur cet appareil.";
+  openModal(`
+    <div class="modal-h"><h3>🔑 Code d'accès</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="note" style="margin-bottom:12px">${why}<br>Entrez le <b>code d'équipe (staff)</b>. Il ne sert qu'aux cartons et ne modifie pas votre accès au suivi médical.</div>
+      <div class="fld"><label>Code staff</label><input id="cc_code" type="password" autocomplete="off" onkeydown="if(event.key==='Enter')saveCode()"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="closeModal()">Plus tard</button>
+      <button class="btn primary" onclick="saveCode()">Valider</button>
+    </div>
+  `);
+  setTimeout(()=>{ const i=document.getElementById('cc_code'); if(i) i.focus(); }, 50);
+}
+async function saveCode(){
+  const v = (document.getElementById('cc_code').value||'').trim();
+  if(!v) return;
+  localStorage.setItem('cartonsCode', v);
+  closeModal(); await load(); renderAll();
 }
 function setSync(s,detail){
   const el=document.getElementById('syncDot'); if(!el) return;
@@ -490,7 +513,7 @@ async function load(){
     setSync('synced');
     if(pending || !data || !data.players) await pushCloud();
   }catch(e){
-    cloudOK = false; setSync('error', e.message);
+    cloudOK = false; setSync('error', needCode===403 ? 'code requis' : e.message); setTimeout(askCodeIfNeeded, 300);
     if(local) state = local;
     if(!state.players || !state.players.length) state.players = seedPlayers();
   }
@@ -506,7 +529,7 @@ async function pushCloud(){
     if(!r.ok) throw new Error(r.status===405 ? 'code en lecture seule' : 'erreur '+r.status);
     localStorage.removeItem(PENDING_KEY);
     setSync('synced');
-  }catch(e){ cloudOK=false; setSync('error', e.message); }
+  }catch(e){ cloudOK=false; setSync('error', e.message); askCodeIfNeeded(); }
 }
 
 function save(){
