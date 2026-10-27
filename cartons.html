@@ -447,43 +447,52 @@ const API = "/api/data";
 let cloudOK = false;
 let saveTimer = null;
 
+const PENDING_KEY = "suiviCartons.pending";   // saisies pas encore envoyées en ligne
 function accessHeaders(){
-  const c = localStorage.getItem('teamCode');
+  const c = localStorage.getItem('cartonsCode') || localStorage.getItem('teamCode');
   return c ? {'x-access-code': c} : {};
 }
 async function apiFetch(opts){
   let r = await fetch(API+"?key="+CLOUD_KEY, opts);
-  if(r.status===403){
-    const code = prompt("Code d'accès de l'équipe :");
-    if(code){ localStorage.setItem('teamCode', code);
+  if(r.status===403 || r.status===405){
+    const msg = r.status===405
+      ? "Le code enregistré sur cet appareil donne un accès en LECTURE SEULE (profil administration) : les cartons ne peuvent pas être enregistrés en ligne.\n\nEntrez le code d'équipe (staff) :"
+      : "Code d'accès de l'équipe :";
+    const code = prompt(msg);
+    if(code){ localStorage.setItem('cartonsCode', code.trim());
       r = await fetch(API+"?key="+CLOUD_KEY, {...opts, headers:{...(opts&&opts.headers||{}), ...accessHeaders()}}); }
   }
   return r;
 }
-function setSync(s){
+function setSync(s,detail){
   const el=document.getElementById('syncDot'); if(!el) return;
   const map={synced:['#3ddb8a','Synchronisé'],syncing:['#ffce1f','Enregistrement…'],error:['#ff4242','Hors-ligne (cet appareil)'],loading:['#3d8bff','Chargement…']};
-  const [c,t]=map[s]||map.error; el.style.background=c; el.title=t;
+  let [c,t]=map[s]||map.error; if(s==='error') t='Non enregistré en ligne'+(detail?' ('+detail+')':'')+' — saisies gardées sur cet appareil'; el.style.background=c; el.title=t;
   const lab=document.getElementById('syncLabel'); if(lab) lab.textContent=t;
 }
 
 async function load(){
   setSync('loading');
+  let local = null;
+  try{ const raw = localStorage.getItem(STORE_KEY); if(raw) local = JSON.parse(raw); }catch(_){}
+  const pending = !!localStorage.getItem(PENDING_KEY) && !!local;
   try{
     const r = await apiFetch({headers:{...accessHeaders()}});
-    if(!r.ok) throw new Error('http');
+    if(!r.ok) throw new Error('erreur '+r.status);
     const data = await r.json();
-    if(data && data.players){ state = data; }
+    cloudOK = true;
+    if(pending){ state = local; }                      // saisies non envoyées : on les garde
+    else if(data && data.players){ state = data; }
     else { state.players = seedPlayers(); state.cards = []; state.overrides = {}; }
-    cloudOK = true; setSync('synced');
+    if(!state.overrides) state.overrides = {};
+    if(!state.matches) state.matches = [];
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
-    if(!data || !data.players) pushCloud();
+    setSync('synced');
+    if(pending || !data || !data.players) await pushCloud();
   }catch(e){
-    cloudOK = false; setSync('error');
-    try{
-      const raw = localStorage.getItem(STORE_KEY);
-      if(raw){ state = JSON.parse(raw); } else state.players = seedPlayers();
-    }catch(_){ state.players = seedPlayers(); }
+    cloudOK = false; setSync('error', e.message);
+    if(local) state = local;
+    if(!state.players || !state.players.length) state.players = seedPlayers();
   }
   if(!state.overrides) state.overrides = {};
   if(!state.matches) state.matches = [];
@@ -494,27 +503,28 @@ async function pushCloud(){
   setSync('syncing');
   try{
     const r = await apiFetch({method:'POST',headers:{'Content-Type':'application/json',...accessHeaders()},body:JSON.stringify(state)});
-    if(!r.ok) throw new Error('http');
+    if(!r.ok) throw new Error(r.status===405 ? 'code en lecture seule' : 'erreur '+r.status);
+    localStorage.removeItem(PENDING_KEY);
     setSync('synced');
-  }catch(e){ cloudOK=false; setSync('error'); }
+  }catch(e){ cloudOK=false; setSync('error', e.message); }
 }
 
 function save(){
-  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); localStorage.setItem(PENDING_KEY, '1'); }catch(e){}
   clearTimeout(saveTimer);
   saveTimer = setTimeout(pushCloud, 350);
 }
 
 async function refreshFromCloud(){
-  if(!cloudOK){ await load(); renderAll(); return; }
+  if(!cloudOK || localStorage.getItem(PENDING_KEY)){ await load(); renderAll(); return; }
   setSync('loading');
   try{
     const r = await apiFetch({headers:{...accessHeaders()}});
-    if(!r.ok) throw new Error('http');
+    if(!r.ok) throw new Error('erreur '+r.status);
     const data = await r.json();
-    if(data && data.players){ state=data; localStorage.setItem(STORE_KEY,JSON.stringify(state)); }
+    if(data && data.players){ state=data; if(!state.matches) state.matches=[]; localStorage.setItem(STORE_KEY,JSON.stringify(state)); }
     setSync('synced'); renderAll();
-  }catch(e){ cloudOK=false; setSync('error'); }
+  }catch(e){ cloudOK=false; setSync('error', e.message); }
 }
 window.addEventListener('focus', ()=>{ if(cloudOK) refreshFromCloud(); });
 
