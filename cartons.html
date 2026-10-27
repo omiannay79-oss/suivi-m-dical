@@ -242,6 +242,8 @@ select.filter:focus{outline:none;border-color:var(--pitch)}
 .divider{height:1px;background:var(--line);margin:16px 0}
 .foot{text-align:center;color:var(--muted2);font-size:12px;margin-top:30px;line-height:1.7}
 
+.mchip{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--surface2);border:1px solid var(--line2);margin:2px 2px 2px 0;white-space:nowrap}
+.mchip.past{opacity:.55;text-decoration:line-through}
 @media(max-width:760px){
   .kpis{grid-template-columns:1fr 1fr}
   .row2{grid-template-columns:1fr}
@@ -285,6 +287,7 @@ select.filter:focus{outline:none;border-color:var(--pitch)}
     <div class="tab" data-tab="squad" onclick="switchTab('squad')">⚽ Effectif <span class="cnt" id="tabSquadCnt">0</span></div>
     <div class="tab" data-tab="susp" onclick="switchTab('susp')">⛔ Suspensions <span class="cnt" id="tabSuspCnt">0</span></div>
     <div class="tab" data-tab="hist" onclick="switchTab('hist')">🗂 Historique <span class="cnt" id="tabHistCnt">0</span></div>
+    <div class="tab" data-tab="cal" onclick="switchTab('cal')">📅 Calendrier <span class="cnt" id="tabCalCnt">0</span></div>
   </nav>
 
   <!-- ============ DASHBOARD ============ -->
@@ -294,6 +297,11 @@ select.filter:focus{outline:none;border-color:var(--pitch)}
       <div class="kpi k-red"><div class="ic"></div><div class="lab">Cartons rouges</div><div class="val" id="kpiR">0</div><div class="hint" id="kpiRh">cumul saison</div></div>
       <div class="kpi k-susp"><div class="lab">Suspensions à purger</div><div class="val" id="kpiS">0</div><div class="hint" id="kpiSh">0 match(s) au total</div></div>
       <div class="kpi"><div class="lab">Joueurs à risque</div><div class="val" id="kpiW">0</div><div class="hint">2 jaunes dans la période</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h2>📅 Prochain match</h2><span class="desc" id="dashNextDesc"></span></div>
+      <div class="panel-b" id="dashNext"></div>
     </div>
 
     <div class="panel">
@@ -332,7 +340,8 @@ select.filter:focus{outline:none;border-color:var(--pitch)}
         <option value="yellow">Trier · Jaunes</option>
         <option value="risk">Trier · Risque</option>
       </select>
-      <button class="btn" onclick="openPlayerModal()">＋ Joueur</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer"><input type="checkbox" id="squadOld" onchange="renderSquad()"> Anciens joueurs</label>
+      <button class="btn primary" onclick="openPlayerModal()">＋ Ajouter un joueur</button>
     </div>
     <div class="squad" id="squadGrid"></div>
   </section>
@@ -341,16 +350,16 @@ select.filter:focus{outline:none;border-color:var(--pitch)}
   <section id="view-susp" style="display:none">
     <div class="toolbar">
       <select class="filter" id="suspFilter" onchange="renderSusp()">
-        <option value="todo">À purger</option>
-        <option value="all">Toutes</option>
-        <option value="done">Purgées</option>
+        <option value="all">En cours + historique</option>
+        <option value="todo">En cours uniquement</option>
+        <option value="done">Historique uniquement</option>
       </select>
       <div class="spacer"></div>
       <button class="btn ghost" onclick="window.print()">🖨 Imprimer</button>
     </div>
     <div class="panel">
       <div class="panel-b" style="padding:0">
-        <table class="tbl" id="suspTable"></table>
+        <div id="suspTable"></div>
       </div>
     </div>
   </section>
@@ -375,9 +384,19 @@ select.filter:focus{outline:none;border-color:var(--pitch)}
     </div>
   </section>
 
+  <!-- ============ CALENDRIER ============ -->
+  <section id="view-cal" style="display:none">
+    <div class="toolbar">
+      <div class="note" style="flex:1;min-width:220px">Saisissez tous les matchs officiels (championnat, coupe). Chaque suspension se purge sur les matchs suivant sa date d'effet.</div>
+      <button class="btn" onclick="openBulkModal()">📋 Coller une liste</button>
+      <button class="btn primary" onclick="openMatchModal()">＋ Match</button>
+    </div>
+    <div class="panel"><div class="panel-b" style="padding:0" id="calTable"></div></div>
+  </section>
+
   <div class="foot">
-    Données enregistrées automatiquement sur cet appareil (navigateur). Pensez à <b>Exporter</b> régulièrement pour conserver une sauvegarde.<br>
-    Règles appliquées : 3 cartons jaunes dans une période de 3 mois (comptée à partir de la date d'effet du 1ᵉʳ carton) → 1 match · Carton rouge → 1 match automatique (en attente de la commission).
+    Données partagées en ligne (base commune), avec copie de secours sur cet appareil. Pensez à <b>Exporter</b> régulièrement pour conserver une sauvegarde.<br>
+    Règles appliquées : 3 jaunes sur 3 matchs différents en 3 mois max → 1 match · Carton rouge → 1 match automatique, puis total fixé par la commission · Commission le jeudi de la semaine qui suit le match · Effet : rouge = lundi suivant le match, cumul de jaunes = lundi suivant la commission.
   </div>
 </div>
 
@@ -467,6 +486,7 @@ async function load(){
     }catch(_){ state.players = seedPlayers(); }
   }
   if(!state.overrides) state.overrides = {};
+  if(!state.matches) state.matches = [];
 }
 
 async function pushCloud(){
@@ -503,7 +523,16 @@ function parseD(s){ return new Date(s+"T00:00:00"); }
 function monthsBefore(date, n){ const d=new Date(date); d.setMonth(d.getMonth()-n); return d; }
 function monthsAfter(date, n){ const d=new Date(date); d.setMonth(d.getMonth()+n); return d; }
 function fmtD(s){ const d=parseD(s); return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'}); }
-function todayStr(){ return new Date().toISOString().slice(0,10); }
+function todayStr(){ return isoLocal(new Date()); }
+function isoLocal(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function nextDay(s){ const d=parseD(s); d.setDate(d.getDate()+1); return isoLocal(d); }
+// Lundi de la semaine du match + n jours
+function mondayPlus(s,n){ const d=parseD(s); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow+n); return isoLocal(d); }
+// Commission : jeudi de la semaine qui suit le match
+function commissionDate(s){ return mondayPlus(s,10); }
+// Prise d'effet par défaut : rouge = lundi suivant le match ; cumul de jaunes = lundi suivant la commission
+function defaultEffect(type,s){ return type==='rouge' ? mondayPlus(s,7) : mondayPlus(s,14); }
+function fmtShort(s){ return parseD(s).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}); }
 
 /* ====================== ANALYSE / SUSPENSIONS ====================== */
 function analyze(){
@@ -580,10 +609,24 @@ function analyze(){
     };
   }
 
+  const cal = (state.matches||[]).slice().sort((x,y)=>parseD(x.date)-parseD(y.date));
+  const tStr = todayStr();
+  for(const s of suspensions){
+    const ov = state.overrides[s.id] || {};
+    const auto = s.type==='rouge' ? SUSP_ROUGE : SUSP_JAUNE;
+    s.total = ov.committeeTotal>0 ? ov.committeeTotal : auto + (ov.extra||0);
+    s.effectDate = ov.effectDate || defaultEffect(s.type, s.triggerDate);
+    s.matchList = cal.filter(m=>m.date>=s.effectDate).slice(0,s.total);
+    s.missing = s.total - s.matchList.length;
+    const last = s.matchList[s.matchList.length-1];
+    s.autoServed = s.missing===0 && !!last && last.date < tStr && !(s.type==='rouge' && s.committeePending);
+    s.served = ov.served===true || (ov.served!==false && s.autoServed);
+    s.servedDate = s.served && last ? last.date : null;
+  }
   for(const s of suspensions){
     if(!s.served){
       perPlayer[s.playerId].openSusp++;
-      perPlayer[s.playerId].totalSuspMatches += (s.baseMatches + s.extraMatches);
+      perPlayer[s.playerId].totalSuspMatches += (s.total);
     }
   }
   return { suspensions, perPlayer };
@@ -594,13 +637,15 @@ function playerById(id){ return state.players.find(p=>p.id===id); }
 /* ====================== RENDU GLOBAL ====================== */
 let currentTab = 'dash';
 function renderAll(){
+  if(!state.matches) state.matches = [];
+  if(!state.overrides) state.overrides = {};
   const a = analyze();
   // KPIs
   const totY = state.cards.filter(c=>c.type==='jaune').length;
   const totR = state.cards.filter(c=>c.type==='rouge').length;
   const openSusp = a.suspensions.filter(s=>!s.served);
-  const totMatches = openSusp.reduce((n,s)=>n+s.baseMatches+s.extraMatches,0);
-  const atRisk = Object.values(a.perPlayer).filter(p=>p.activeWindow===SEUIL_JAUNES-1).length;
+  const totMatches = openSusp.reduce((n,s)=>n+s.total,0);
+  const atRisk = state.players.filter(p=>p.active!==false && a.perPlayer[p.id].activeWindow===SEUIL_JAUNES-1).length;
 
   document.getElementById('kpiY').textContent = totY;
   document.getElementById('kpiR').textContent = totR;
@@ -609,7 +654,7 @@ function renderAll(){
   document.getElementById('kpiW').textContent = atRisk;
 
   // tab counters
-  document.getElementById('tabSquadCnt').textContent = state.players.length;
+  document.getElementById('tabSquadCnt').textContent = state.players.filter(p=>p.active!==false).length;
   document.getElementById('tabSuspCnt').textContent = openSusp.length;
   document.getElementById('tabHistCnt').textContent = state.cards.length;
 
@@ -619,11 +664,27 @@ function renderAll(){
   renderSquad(a);
   renderSusp(a);
   renderHist();
+  renderCal(a);
+  document.getElementById('tabCalCnt').textContent = state.matches.length;
 }
 
 /* ====================== DASHBOARD ====================== */
 function renderDash(a){
   a = a || analyze();
+  // prochain match
+  const elN = document.getElementById('dashNext');
+  if(elN){
+    const nm = nextMatch();
+    const d = document.getElementById('dashNextDesc');
+    if(!nm){ d.textContent=''; elN.innerHTML='<div class="empty">Aucun match à venir. Saisissez le calendrier dans l\'onglet 📅 Calendrier.</div>'; }
+    else{
+      const out = suspendedFor(a,nm);
+      d.textContent = fmtD(nm.date)+(nm.time?' · '+nm.time:'')+' — '+(nm.venue==='E'?'@ ':'vs ')+nm.opp+(nm.comp?' ('+nm.comp+')':'');
+      elN.innerHTML = out.length
+        ? '<div style="padding-top:10px"><b>Indisponibles (suspension) :</b> '+out.map(x=>`<span class="cardpill ${x.s.type==='rouge'?'r':'y'}"><span class="sq"></span>#${x.p.num} ${esc(x.p.name)}</span>`).join(' ')+'</div>'
+        : '<div class="note" style="padding-top:10px">Aucun joueur suspendu pour ce match.</div>';
+    }
+  }
   // suspensions
   const open = a.suspensions.filter(s=>!s.served)
     .sort((x,y)=>parseD(y.triggerDate)-parseD(x.triggerDate));
@@ -631,11 +692,11 @@ function renderDash(a){
   if(open.length===0){
     elS.innerHTML = '<div class="empty"><div class="big">Aucune suspension en cours</div>Tout l\'effectif est disponible.</div>';
   }else{
-    elS.innerHTML = '<table class="tbl"><thead><tr><th>Joueur</th><th>Motif</th><th>Matchs</th><th>Depuis</th><th>Statut</th><th></th></tr></thead><tbody>'+
+    elS.innerHTML = '<table class="tbl"><thead><tr><th>Joueur</th><th>Motif</th><th>Matchs</th><th>Matchs concernés</th><th>Depuis</th><th>Statut</th><th></th></tr></thead><tbody>'+
       open.map(s=>suspRow(s)).join('')+'</tbody></table>';
   }
   // warnings
-  const warns = state.players.filter(p=>a.perPlayer[p.id].activeWindow===SEUIL_JAUNES-1);
+  const warns = state.players.filter(p=>p.active!==false && a.perPlayer[p.id].activeWindow===SEUIL_JAUNES-1);
   const elW = document.getElementById('dashWarn');
   if(warns.length===0){
     elW.innerHTML = '<div class="empty">Aucun joueur en zone d\'alerte.</div>';
@@ -674,21 +735,21 @@ function renderDash(a){
 
 function suspRow(s){
   const p = playerById(s.playerId);
-  const total = s.baseMatches + s.extraMatches;
-  let status = s.type==='rouge' && s.committeePending
-    ? '<span class="badge pending">⏳ Commission</span>'
-    : '<span class="badge todo">À purger</span>';
+  const total = s.total;
+  const pend = s.type==='rouge' && s.committeePending;
+  const status = pend ? '<span class="badge pending">⏳ Commission</span>' : '<span class="badge todo">À purger</span>';
   const motif = s.type==='rouge'
-    ? 'Carton rouge'+(s.extraMatches?` (+${s.extraMatches} commission)`:'')
-    : `${SEUIL_JAUNES} jaunes · période dès le ${fmtD(s.windowStart)}`;
+    ? (pend ? 'Rouge · match auto' : 'Rouge · décision commission')
+    : `${SEUIL_JAUNES} jaunes · dès le ${fmtD(s.windowStart)}`;
   return `<tr>
     <td><b>#${p?p.num:'?'} ${p?esc(p.name):'—'}</b></td>
-    <td>${s.type==='rouge'?'<span class="cardpill r"><span class="sq"></span></span> ':'<span class="cardpill y"><span class="sq"></span></span> '}${motif}</td>
+    <td>${cardPill(s.type)} ${motif}</td>
     <td><b>${total}</b> match${total>1?'s':''}</td>
+    <td>${matchesCell(s)}</td>
     <td style="color:var(--muted)">${fmtD(s.triggerDate)}</td>
     <td>${status}</td>
     <td style="text-align:right;white-space:nowrap">
-      <button class="btn sm" onclick="manageSusp('${s.id}')">Gérer</button>
+      <button class="btn sm" onclick="manageSusp('${s.id}')">${pend?'⚖ Décision commission':'Gérer'}</button>
       <button class="btn sm primary" onclick="markServed('${s.id}',true)">✓ Purgée</button>
     </td>
   </tr>`;
@@ -700,7 +761,9 @@ function renderSquad(a){
   const q = (document.getElementById('squadSearch').value||'').toLowerCase().trim();
   const pos = document.getElementById('squadPos').value;
   const sort = document.getElementById('squadSort').value;
+  const showOld = !!(document.getElementById('squadOld')||{}).checked;
   let list = state.players.filter(p=>{
+    if(!showOld && p.active===false) return false;
     if(pos && p.pos!==pos) return false;
     if(q && !((p.name||'').toLowerCase().includes(q) || String(p.num).includes(q))) return false;
     return true;
@@ -719,10 +782,11 @@ function renderSquad(a){
     const suspended = s.openSusp>0;
     const warn = s.activeWindow===SEUIL_JAUNES-1;
     let flag='';
-    if(suspended) flag = `<div class="status-flag flag-susp">Suspendu · ${s.totalSuspMatches} m</div>`;
+    if(p.active===false) flag = `<div class="status-flag" style="background:var(--surface2);color:var(--muted);border:1px solid var(--line2)">Parti</div>`;
+    else if(suspended) flag = `<div class="status-flag flag-susp">Suspendu · ${s.totalSuspMatches} m</div>`;
     else if(warn) flag = `<div class="status-flag flag-warn">À risque</div>`;
     const dots = Array.from({length:SEUIL_JAUNES},(_,i)=>`<div class="wdot ${i<s.activeWindow?'on':''}"></div>`).join('');
-    return `<div class="pcard ${suspended?'suspended':warn?'warn':''}" onclick="showPlayer('${p.id}')">
+    return `<div class="pcard ${suspended?'suspended':warn?'warn':''}" style="${p.active===false?'opacity:.5':''}" onclick="showPlayer('${p.id}')">
       ${flag}
       <div class="pcard-top">
         <div class="num">${p.num}</div>
@@ -745,39 +809,39 @@ function renderSquad(a){
 function renderSusp(a){
   a = a || analyze();
   const f = document.getElementById('suspFilter').value;
-  let list = a.suspensions.slice().sort((x,y)=>parseD(y.triggerDate)-parseD(x.triggerDate));
-  if(f==='todo') list = list.filter(s=>!s.served);
-  if(f==='done') list = list.filter(s=>s.served);
-  const t = document.getElementById('suspTable');
-  if(list.length===0){
-    t.innerHTML = '<tbody><tr><td><div class="empty"><div class="big">Aucune suspension</div></div></td></tr></tbody>';
-    return;
+  const byDate = (x,y)=>parseD(y.triggerDate)-parseD(x.triggerDate);
+  const open = a.suspensions.filter(s=>!s.served).sort(byDate);
+  const done = a.suspensions.filter(s=>s.served).sort(byDate);
+  let h = '';
+  if(f!=='done'){
+    h += `<div class="section-title" style="margin:16px 18px 8px">En cours (${open.length})</div>`;
+    h += open.length
+      ? '<table class="tbl"><thead><tr><th>Joueur</th><th>Motif</th><th>Matchs</th><th>Matchs concernés</th><th>Déclenchée le</th><th>Statut</th><th></th></tr></thead><tbody>'+open.map(suspRow).join('')+'</tbody></table>'
+      : '<div class="empty">Aucune suspension en cours.</div>';
   }
-  t.innerHTML = '<thead><tr><th>Joueur</th><th>Motif</th><th>Matchs</th><th>Déclenchée le</th><th>Statut</th><th></th></tr></thead><tbody>'+
-    list.map(s=>{
-      const p = playerById(s.playerId);
-      const total = s.baseMatches+s.extraMatches;
-      let status;
-      if(s.served) status='<span class="badge done">✓ Purgée</span>';
-      else if(s.type==='rouge' && s.committeePending) status='<span class="badge pending">⏳ Commission</span>';
-      else status='<span class="badge todo">À purger</span>';
-      const motif = s.type==='rouge'
-        ? 'Carton rouge'+(s.extraMatches?` (+${s.extraMatches} comm.)`:'')
-        : `${SEUIL_JAUNES} jaunes · dès le ${fmtD(s.windowStart)}`;
-      return `<tr>
-        <td><b>#${p?p.num:'?'} ${p?esc(p.name):'—'}</b></td>
-        <td>${s.type==='rouge'?cardPill('rouge'):cardPill('jaune')} ${motif}</td>
-        <td><b>${total}</b></td>
-        <td style="color:var(--muted)">${fmtD(s.triggerDate)}</td>
-        <td>${status}</td>
-        <td style="text-align:right;white-space:nowrap">
-          <button class="btn sm" onclick="manageSusp('${s.id}')">Gérer</button>
-          ${s.served
-            ? `<button class="btn sm ghost" onclick="markServed('${s.id}',false)">↺ Rouvrir</button>`
-            : `<button class="btn sm primary" onclick="markServed('${s.id}',true)">✓ Purgée</button>`}
-        </td>
-      </tr>`;
-    }).join('')+'</tbody>';
+  if(f!=='todo'){
+    h += `<div class="section-title" style="margin:22px 18px 8px">Historique des suspensions purgées (${done.length})</div>`;
+    h += done.length
+      ? '<table class="tbl"><thead><tr><th>Joueur</th><th>Motif</th><th>Matchs</th><th>Matchs purgés</th><th>Déclenchée le</th><th>Purgée</th><th></th></tr></thead><tbody>'+
+        done.map(s=>{
+          const p = playerById(s.playerId);
+          const gone = p && p.active===false;
+          return `<tr style="${gone?'opacity:.65':''}">
+            <td><b>#${p?p.num:'?'} ${p?esc(p.name):'—'}</b>${gone?' <span class="note">(parti)</span>':''}</td>
+            <td>${cardPill(s.type)} ${s.type==='rouge'?'Carton rouge':SEUIL_JAUNES+' jaunes'}${s.note?`<div class="note">${esc(s.note)}</div>`:''}</td>
+            <td><b>${s.total}</b></td>
+            <td>${s.matchList.length?s.matchList.map(matchChip).join(' '):'<span class="note">—</span>'}</td>
+            <td style="color:var(--muted)">${fmtD(s.triggerDate)}</td>
+            <td><span class="badge done">✓ ${s.servedDate?fmtD(s.servedDate):'Purgée'}</span></td>
+            <td style="text-align:right;white-space:nowrap">
+              <button class="btn sm" onclick="manageSusp('${s.id}')">Détail</button>
+              <button class="btn sm ghost" onclick="markServed('${s.id}',false)">↺ Rouvrir</button>
+            </td>
+          </tr>`;
+        }).join('')+'</tbody></table>'
+      : '<div class="empty">Aucune suspension purgée pour l\'instant.</div>';
+  }
+  document.getElementById('suspTable').innerHTML = h;
 }
 
 /* ====================== HISTORY ====================== */
@@ -811,6 +875,26 @@ function renderHist(){
     }).join('')+'</tbody>';
 }
 
+/* ====================== HELPERS CALENDRIER ====================== */
+function matchChip(m){
+  const past = m.date < todayStr();
+  return `<span class="mchip${past?' past':''}" title="${esc(m.comp||'')}">${fmtShort(m.date)} ${m.venue==='E'?'@':'vs'} ${esc(m.opp)}</span>`;
+}
+function matchesCell(s){
+  if(!(state.matches||[]).length) return '<span class="note">Calendrier non saisi</span>';
+  let h = s.matchList.map(m=>matchChip(m)).join(' ');
+  if(s.missing>0) h += ` <span class="note" style="color:#ff8a3d">+${s.missing} hors calendrier</span>`;
+  return h || '<span class="note">—</span>';
+}
+function suspendedFor(a,m){
+  return a.suspensions.filter(s=>s.matchList.some(x=>x.id===m.id))
+    .map(s=>({s,p:playerById(s.playerId)})).filter(x=>x.p);
+}
+function nextMatch(){
+  const t = todayStr();
+  return (state.matches||[]).filter(m=>m.date>=t).sort((x,y)=>parseD(x.date)-parseD(y.date))[0] || null;
+}
+
 /* ====================== HELPERS RENDU ====================== */
 function cardPill(type){
   return type==='rouge'
@@ -823,7 +907,7 @@ function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;
 function switchTab(t){
   currentTab=t;
   document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===t));
-  ['dash','squad','susp','hist'].forEach(v=>{
+  ['dash','squad','susp','hist','cal'].forEach(v=>{
     document.getElementById('view-'+v).style.display = v===t?'block':'none';
   });
   window.scrollTo({top:0,behavior:'smooth'});
@@ -838,7 +922,7 @@ let cardForm = {};
 function openCardModal(presetPlayer, editId){
   const editing = editId ? state.cards.find(c=>c.id===editId) : null;
   cardForm = editing ? {...editing} : {id:null, playerId:presetPlayer||'', type:'jaune', date:todayStr(), opp:'', comp:'', note:''};
-  const opts = state.players.slice().sort((a,b)=>a.num-b.num)
+  const opts = state.players.filter(p=>p.active!==false || p.id===cardForm.playerId).sort((a,b)=>a.num-b.num)
     .map(p=>`<option value="${p.id}" ${p.id===cardForm.playerId?'selected':''}>#${p.num} — ${esc(p.name)} (${p.pos})</option>`).join('');
   openModal(`
     <div class="modal-h"><h3>${editing?'Éditer le carton':'Enregistrer un carton'}</h3><span class="x" onclick="closeModal()">×</span></div>
@@ -905,33 +989,39 @@ function manageSusp(id){
   if(!s){ return; }
   const p = playerById(s.playerId);
   const isRed = s.type==='rouge';
+  const ov = state.overrides[id] || {};
   openModal(`
-    <div class="modal-h"><h3>Gérer la suspension</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-h"><h3>${isRed?'Carton rouge · décision commission':'Suspension · cumul de jaunes'}</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
       <div class="note" style="margin-bottom:14px">
-        <b style="color:var(--txt);font-size:15px">#${p.num} ${esc(p.name)}</b><br>
-        ${isRed?'Carton rouge':SEUIL_JAUNES+' cartons jaunes (période ouverte le '+fmtD(s.windowStart)+')'} · déclenchée le ${fmtD(s.triggerDate)}<br>
-        Suspension automatique : <b>${s.baseMatches} match</b>
+        <b style="color:var(--txt);font-size:15px">#${p?p.num:'?'} ${p?esc(p.name):'—'}</b><br>
+        ${isRed?'Carton rouge':SEUIL_JAUNES+' cartons jaunes (période ouverte le '+fmtD(s.windowStart)+')'} · le ${fmtD(s.triggerDate)}<br>
+        ${isRed?'Match automatique : <b>1 match</b>, à partir du lundi suivant le match. Commission prévue le '+fmtD(commissionDate(s.triggerDate))+'.':'Sanction de référence : <b>1 match</b> (barème, art. 1.3). Commission prévue le '+fmtD(commissionDate(s.triggerDate))+', effet le lundi suivant.'}
       </div>
       ${isRed?`
       <div class="fld">
-        <label>Décision de la commission de discipline</label>
-        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-weight:600;color:var(--txt);margin-bottom:10px;cursor:pointer">
-          <input type="checkbox" id="ms_comm" ${!s.committeePending?'checked':''} style="width:auto" onchange="document.getElementById('ms_commHint').style.display=this.checked?'none':'block'">
-          Décision rendue par la commission
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-weight:700;color:var(--txt);cursor:pointer">
+          <input type="checkbox" id="ms_comm" ${!s.committeePending?'checked':''} style="width:auto"> Décision rendue par la commission
         </label>
-        <div id="ms_commHint" class="note" style="display:${s.committeePending?'block':'none'}">Tant que la case est décochée, la suspension reste « en attente de la commission ».</div>
+      </div>`:''}
+      <div class="row2">
+        <div class="fld">
+          <label>${isRed?'Total de matchs (commission)':'Nombre de matchs (décision)'}</label>
+          <input type="number" id="ms_total" min="1" max="60" value="${s.total}" ${isRed?`oninput="document.getElementById('ms_comm').checked=true"`:''}>
+          <div class="note" style="margin-top:6px">${isRed?'Match automatique inclus. Commission = 3 matchs → saisir 3.':'1 match sauf décision différente.'}</div>
+        </div>
+        <div class="fld">
+          <label>Date d'effet</label>
+          <input type="date" id="ms_eff" value="${s.effectDate}">
+          <div class="note" style="margin-top:6px">${ov.effectDate?'Date saisie manuellement.':(isRed?'Par défaut : lundi suivant le match.':'Par défaut : lundi suivant la commission du '+fmtD(commissionDate(s.triggerDate))+'.')}</div>
+        </div>
       </div>
       <div class="fld">
-        <label>Matchs supplémentaires (commission)</label>
-        <input type="number" id="ms_extra" min="0" max="20" value="${s.extraMatches}">
-        <div class="note" style="margin-top:6px">S'ajoute(nt) au match automatique. Total = ${s.baseMatches} + supplément.</div>
-      </div>`:`
-      <div class="fld">
-        <label>Matchs supplémentaires (facultatif)</label>
-        <input type="number" id="ms_extra" min="0" max="20" value="${s.extraMatches}">
-      </div>`}
-      <div class="fld"><label>Note</label><textarea id="ms_note" placeholder="Référence dossier, motif…">${esc(s.note)}</textarea></div>
+        <label>Matchs concernés (calendrier)</label>
+        <div>${matchesCell(s)}</div>
+      </div>
+      <div class="fld"><label>Note</label><textarea id="ms_note" placeholder="N° de dossier, PV, motif…">${esc(s.note)}</textarea></div>
+      ${ov.served!==undefined?`<div class="note">Statut forcé à la main (${ov.served?'purgée':'à purger'}). <a href="#" onclick="resetServed('${s.id}');return false" style="color:var(--yellow)">Revenir au calcul automatique</a></div>`:''}
     </div>
     <div class="modal-f">
       <button class="btn ghost" onclick="closeModal()">Fermer</button>
@@ -941,10 +1031,20 @@ function manageSusp(id){
 }
 function saveSusp(id,isRed){
   const ov = state.overrides[id] || {};
-  ov.extra = Math.max(0, parseInt(document.getElementById('ms_extra').value)||0);
+  const auto = isRed ? SUSP_ROUGE : SUSP_JAUNE;
+  ov.committeeTotal = Math.max(1, parseInt(document.getElementById('ms_total').value)||auto);
+  ov.extra = 0;
+  const s = analyze().suspensions.find(x=>x.id===id);
+  const eff = document.getElementById('ms_eff').value;
+  if(eff && s && eff!==defaultEffect(s.type, s.triggerDate)) ov.effectDate = eff; else delete ov.effectDate;
   ov.note = document.getElementById('ms_note').value.trim();
   if(isRed){ ov.committeeDone = document.getElementById('ms_comm').checked; }
   state.overrides[id] = ov;
+  save(); closeModal(); renderAll();
+}
+function resetServed(id){
+  const ov = state.overrides[id] || {};
+  delete ov.served; state.overrides[id] = ov;
   save(); closeModal(); renderAll();
 }
 function markServed(id, val){
@@ -980,11 +1080,11 @@ function showPlayer(id){
       </div>
       <div class="note">Période en cours : <b style="color:var(--txt)">${s.activeWindow}/${SEUIL_JAUNES}</b> jaunes${s.windowStart?` — ouverte le ${fmtD(s.windowStart)}, valable jusqu'au ${s.windowEnd.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'})}`:' (aucune période active)'}${s.activeWindow===SEUIL_JAUNES-1?' — <span style="color:var(--yellow)">1 avant suspension</span>':''}.</div>
       ${mySusp.length?`<div class="section-title">Suspensions</div>`+mySusp.map(x=>{
-        const total=x.baseMatches+x.extraMatches;
+        const total=x.total;
         const st = x.served?'<span class="badge done">Purgée</span>':(x.type==='rouge'&&x.committeePending?'<span class="badge pending">Commission</span>':'<span class="badge todo">À purger</span>');
         return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
           ${cardPill(x.type)} <span style="font-weight:700">${total} match${total>1?'s':''}</span>
-          <span style="color:var(--muted);font-size:12px">${fmtD(x.triggerDate)}</span>
+          <span style="color:var(--muted);font-size:12px">${fmtD(x.triggerDate)}</span> <span>${x.matchList.map(m=>matchChip(m)).join(' ')}</span>
           <span style="margin-left:auto">${st}</span></div>`;
       }).join(''):''}
       <div class="section-title">Historique des cartons</div>
@@ -1015,7 +1115,10 @@ function openPlayerModal(id){
       <div class="fld"><label>Nom du joueur</label><input id="pf_name" value="${esc(p.name)}" placeholder="Prénom Nom"></div>
     </div>
     <div class="modal-f">
-      ${id?`<button class="btn danger" style="margin-right:auto" onclick="deletePlayer('${id}')">Supprimer</button>`:''}
+      ${id?(p.active===false
+        ? `<button class="btn" style="margin-right:auto" onclick="setActive('${id}',true)">↺ Réintégrer</button>`
+        : `<button class="btn" style="margin-right:auto" onclick="setActive('${id}',false)">⇥ Retirer de l'effectif</button>`)
+        + `<button class="btn danger" onclick="deletePlayer('${id}')">Supprimer</button>`:''}
       <button class="btn ghost" onclick="closeModal()">Annuler</button>
       <button class="btn primary" onclick="savePlayer('${id||''}')">Enregistrer</button>
     </div>
@@ -1035,10 +1138,123 @@ function savePlayer(id){
 }
 function deletePlayer(id){
   const n = state.cards.filter(c=>c.playerId===id).length;
-  if(!confirm("Supprimer ce joueur"+(n?` et ses ${n} carton(s)`:'')+" ?")) return;
+  if(!confirm("Supprimer DÉFINITIVEMENT ce joueur"+(n?` et ses ${n} carton(s)`:'')+" ?\n\nSes suspensions disparaîtront aussi de l'historique. Pour un départ, utilisez plutôt « Retirer de l'effectif ».")) return;
   state.players = state.players.filter(p=>p.id!==id);
   state.cards = state.cards.filter(c=>c.playerId!==id);
   save(); closeModal(); renderAll();
+}
+
+/* ---- Retirer / réintégrer ---- */
+function setActive(id,val){
+  const p = playerById(id); if(!p) return;
+  if(!val && !confirm(`Retirer ${p.name} de l'effectif ?\nSes cartons et suspensions restent dans l'historique.`)) return;
+  if(val){ delete p.active; delete p.leftDate; } else { p.active = false; p.leftDate = todayStr(); }
+  save(); closeModal(); renderAll();
+}
+
+/* ====================== CALENDRIER ====================== */
+function renderCal(a){
+  a = a || analyze();
+  const box = document.getElementById('calTable'); if(!box) return;
+  const list = (state.matches||[]).slice().sort((x,y)=>parseD(x.date)-parseD(y.date));
+  if(!list.length){ box.innerHTML = '<div class="empty"><div class="big">Calendrier vide</div>Ajoutez les matchs un par un (＋ Match) ou collez la liste complète (📋).</div>'; return; }
+  const t = todayStr(); let nextTagged = false;
+  box.innerHTML = '<table class="tbl"><thead><tr><th>Date</th><th>Match</th><th>Compétition</th><th>Suspendus</th><th></th></tr></thead><tbody>'+
+    list.map(m=>{
+      const out = suspendedFor(a,m);
+      const past = m.date < t;
+      let tag = '';
+      if(!past && !nextTagged){ tag = ' <span class="badge todo">Prochain</span>'; nextTagged = true; }
+      return `<tr style="${past?'opacity:.55':''}">
+        <td style="white-space:nowrap">${fmtD(m.date)}${m.time?' · '+esc(m.time):''}</td>
+        <td><b>${m.venue==='E'?'@ ':'vs '}${esc(m.opp)}</b>${tag}</td>
+        <td style="color:var(--muted)">${esc(m.comp)||'—'}</td>
+        <td>${out.length?out.map(x=>`<span class="cardpill ${x.s.type==='rouge'?'r':'y'}"><span class="sq"></span>#${x.p.num} ${esc(x.p.name)}</span>`).join(' '):'<span class="note">—</span>'}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn sm" onclick="openMatchModal('${m.id}')">Éditer</button>
+          <button class="btn sm danger" onclick="deleteMatch('${m.id}')">✕</button>
+        </td>
+      </tr>`;
+    }).join('')+'</tbody></table>';
+}
+function openMatchModal(id){
+  const m = id ? state.matches.find(x=>x.id===id) : {id:null,date:todayStr(),time:'',opp:'',comp:'National 1',venue:'D'};
+  openModal(`
+    <div class="modal-h"><h3>${id?'Éditer le match':'Ajouter un match'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="row2">
+        <div class="fld"><label>Date</label><input type="date" id="mf_date" value="${m.date}"></div>
+        <div class="fld"><label>Heure (facultatif)</label><input type="time" id="mf_time" value="${esc(m.time||'')}"></div>
+      </div>
+      <div class="fld"><label>Adversaire</label><input id="mf_opp" value="${esc(m.opp)}" placeholder="ex. Furiani"></div>
+      <div class="row2">
+        <div class="fld"><label>Compétition</label><input id="mf_comp" value="${esc(m.comp)}" placeholder="National 1, Coupe de France…"></div>
+        <div class="fld"><label>Lieu</label><select id="mf_venue"><option value="D" ${m.venue!=='E'?'selected':''}>Domicile</option><option value="E" ${m.venue==='E'?'selected':''}>Extérieur</option></select></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="saveMatch('${id||''}')">Enregistrer</button>
+    </div>
+  `);
+}
+function saveMatch(id){
+  const data = {
+    date: document.getElementById('mf_date').value,
+    time: document.getElementById('mf_time').value,
+    opp: document.getElementById('mf_opp').value.trim(),
+    comp: document.getElementById('mf_comp').value.trim(),
+    venue: document.getElementById('mf_venue').value
+  };
+  if(!data.date || !data.opp){ alert("Date et adversaire obligatoires."); return; }
+  if(!state.matches) state.matches = [];
+  if(id){ const i = state.matches.findIndex(x=>x.id===id); state.matches[i] = {...state.matches[i], ...data}; }
+  else state.matches.push({id:uid(), ...data});
+  save(); closeModal(); renderAll();
+}
+function deleteMatch(id){
+  if(!confirm("Supprimer ce match du calendrier ? Les matchs de suspension seront recalculés.")) return;
+  state.matches = state.matches.filter(x=>x.id!==id);
+  save(); renderAll();
+}
+function openBulkModal(){
+  openModal(`
+    <div class="modal-h"><h3>Coller le calendrier</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="note" style="margin-bottom:10px">Une ligne par match : <b>date ; adversaire ; compétition ; D ou E</b><br>
+      Exemple : <code>08/11/2026 ; Furiani ; National 1 ; D</code><br>
+      Le copier-coller depuis Excel (colonnes) fonctionne aussi. Un match déjà présent (même date, même adversaire) est ignoré.</div>
+      <div class="fld"><textarea id="bk_txt" style="min-height:220px;font-family:monospace;font-size:13px" placeholder="08/11/2026 ; Furiani ; National 1 ; D"></textarea></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="saveBulk()">Importer</button>
+    </div>
+  `);
+}
+function parseDateFR(s){
+  s = (s||'').trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+  if(!m) return null;
+  let y = +m[3]; if(y<100) y += 2000;
+  return y+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+}
+function saveBulk(){
+  const lines = document.getElementById('bk_txt').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(!state.matches) state.matches = [];
+  let added = 0; const bad = [];
+  for(const l of lines){
+    const parts = l.split(/\t|;/).map(x=>x.trim());
+    const date = parseDateFR(parts[0]);
+    if(!date || !parts[1]){ bad.push(l); continue; }
+    const venue = (parts[3]||'D').toUpperCase().startsWith('E') ? 'E' : 'D';
+    if(state.matches.some(x=>x.date===date && (x.opp||'').toLowerCase()===parts[1].toLowerCase())) continue;
+    state.matches.push({id:uid(), date, time:'', opp:parts[1], comp:parts[2]||'', venue});
+    added++;
+  }
+  save(); closeModal(); renderAll();
+  alert(added+" match(s) ajouté(s)."+(bad.length ? "\n\nLignes non reconnues :\n"+bad.join("\n") : ""));
 }
 
 /* ---- Nom du club ---- */
@@ -1075,7 +1291,7 @@ function importData(ev){
       const d = JSON.parse(r.result);
       if(!d.players || !d.cards) throw new Error("Format invalide");
       if(!confirm("Remplacer les données actuelles par le fichier importé ?")) return;
-      state = {club:d.club||'US Créteil Football', players:d.players, cards:d.cards, overrides:d.overrides||{}};
+      state = {club:d.club||'US Créteil Football', players:d.players, cards:d.cards, overrides:d.overrides||{}, matches:d.matches||[]};
       save(); renderAll();
       alert("Données importées avec succès.");
     }catch(e){ alert("Fichier illisible : "+e.message); }
