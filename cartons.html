@@ -389,7 +389,7 @@ select.filter:focus{outline:none;border-color:var(--pitch)}
   <section id="view-cal" style="display:none">
     <div class="toolbar">
       <select class="filter" id="calTeam" onchange="renderCal()"><option value="">Toutes les équipes</option><option value="A">Équipe 1 (N1)</option><option value="R">Réserve (R1)</option></select>
-      <div class="note" style="flex:1;min-width:200px">Une suspension se purge sur les matchs de l'équipe concernée, à partir de sa date d'effet.</div>
+      <div class="note" style="flex:1;min-width:200px">Une suspension se purge au regard du calendrier de chaque équipe du club (art. 226 RG), à partir de sa date d'effet.</div>
       <button class="btn primary" onclick="importFFF()">⟳ Importer depuis la FFF</button>
       <button class="btn" onclick="openBulkModal()">📋 Coller une liste</button>
       <button class="btn primary" onclick="openMatchModal()">＋ Match</button>
@@ -398,7 +398,7 @@ select.filter:focus{outline:none;border-color:var(--pitch)}
   </section>
 
   <div class="foot">
-    Données partagées en ligne (base commune), avec copie de secours sur cet appareil. · Version du 27/10/2026 (5) Pensez à <b>Exporter</b> régulièrement pour conserver une sauvegarde.<br>
+    Données partagées en ligne (base commune), avec copie de secours sur cet appareil. · Version du 27/10/2026 (6) Pensez à <b>Exporter</b> régulièrement pour conserver une sauvegarde.<br>
     Règles appliquées : 3 jaunes sur 3 matchs différents en 3 mois max → 1 match · Carton rouge → 1 match automatique, puis total fixé par la commission · Commission le jeudi de la semaine qui suit le match · Effet : rouge = lundi suivant le match, cumul de jaunes = lundi suivant la commission.
   </div>
 </div>
@@ -651,12 +651,21 @@ function analyze(){
     const auto = s.type==='rouge' ? SUSP_ROUGE : SUSP_JAUNE;
     s.total = ov.committeeTotal>0 ? ov.committeeTotal : auto + (ov.extra||0);
     s.effectDate = ov.effectDate || defaultEffect(s.type, s.triggerDate);
-    const trig = state.cards.find(c=>c.id===s.cardIds[s.cardIds.length-1]);
-    s.team = ov.team || (trig && trig.team) || 'A';
-    s.matchList = cal.filter(m=>(m.team||'A')===s.team && m.date>=s.effectDate).slice(0,s.total);
-    s.missing = s.total - s.matchList.length;
-    const last = s.matchList[s.matchList.length-1];
-    s.autoServed = s.missing===0 && !!last && last.date < tStr && !(s.type==='rouge' && s.committeePending);
+    // Art. 226 RG : la suspension se purge au regard du calendrier de CHAQUE équipe du club
+    s.byTeam = {}; s.matchList = []; s.missing = 0;
+    let last = null, allDone = true, any = false;
+    for(const t of Object.keys(TEAMS)){
+      const tc = cal.filter(m=>(m.team||'A')===t);
+      if(!tc.length) continue;
+      any = true;
+      const lst = tc.filter(m=>m.date>=s.effectDate).slice(0,s.total);
+      s.byTeam[t] = lst; s.matchList = s.matchList.concat(lst);
+      const miss = s.total - lst.length; s.missing += miss;
+      const l = lst[lst.length-1];
+      if(miss>0 || !l || l.date >= tStr) allDone = false;
+      if(l && (!last || l.date > last.date)) last = l;
+    }
+    s.autoServed = any && allDone && !(s.type==='rouge' && s.committeePending);
     s.served = ov.served===true || (ov.served!==false && s.autoServed);
     s.servedDate = s.served && last ? last.date : null;
   }
@@ -871,7 +880,7 @@ function renderSusp(a){
             <td><b>#${p?p.num:'?'} ${p?esc(p.name):'—'}</b>${gone?' <span class="note">(parti)</span>':''}</td>
             <td>${cardPill(s.type)} ${s.type==='rouge'?'Carton rouge':SEUIL_JAUNES+' jaunes'}${s.note?`<div class="note">${esc(s.note)}</div>`:''}</td>
             <td><b>${s.total}</b></td>
-            <td>${s.matchList.length?s.matchList.map(matchChip).join(' '):'<span class="note">—</span>'}</td>
+            <td>${matchesCell(s)}</td>
             <td style="color:var(--muted)">${fmtD(s.triggerDate)}</td>
             <td><span class="badge done">✓ ${s.servedDate?fmtD(s.servedDate):'Purgée'}</span></td>
             <td style="text-align:right;white-space:nowrap">
@@ -923,9 +932,11 @@ function matchChip(m){
 }
 function matchesCell(s){
   if(!(state.matches||[]).length) return '<span class="note">Calendrier non saisi</span>';
-  let h = s.matchList.map(m=>matchChip(m)).join(' ');
-  if(s.missing>0) h += ` <span class="note" style="color:#ff8a3d">+${s.missing} hors calendrier</span>`;
-  return h || '<span class="note">—</span>';
+  const parts = Object.keys(s.byTeam||{}).map(t=>{
+    const lst = s.byTeam[t]; const miss = s.total - lst.length;
+    return `<div style="margin:2px 0"><span class="note" style="font-weight:700">${TEAMS[t]} :</span> ${lst.map(m=>matchChip(m)).join(' ')}${miss>0?` <span class="note" style="color:#ff8a3d">+${miss} hors calendrier</span>`:''}</div>`;
+  });
+  return parts.join('') || '<span class="note">—</span>';
 }
 function suspendedFor(a,m){
   return a.suspensions.filter(s=>s.matchList.some(x=>x.id===m.id))
@@ -1061,12 +1072,8 @@ function manageSusp(id){
         </div>
       </div>
       <div class="fld">
-        <label>Purge avec l'équipe</label>
-        <select id="ms_team"><option value="A" ${s.team!=='R'?'selected':''}>Équipe 1 (N1 / Coupe de France)</option><option value="R" ${s.team==='R'?'selected':''}>Réserve (R1 / Coupe de Paris)</option></select>
-        <div class="note" style="margin-top:6px">Art. 226 RG : la suspension se purge avec l'équipe où le joueur reprend la compétition.</div>
-      </div>
-      <div class="fld">
-        <label>Matchs concernés (calendrier)</label>
+        <label>Matchs concernés — chaque équipe du club</label>
+        <div class="note" style="margin-bottom:6px">Art. 226 RG : le joueur ne peut figurer sur une feuille de match d'une équipe tant qu'il n'a pas purgé sa suspension au regard du calendrier de cette équipe.</div>
         <div>${matchesCell(s)}</div>
       </div>
       <div class="fld"><label>Note</label><textarea id="ms_note" placeholder="N° de dossier, PV, motif…">${esc(s.note)}</textarea></div>
@@ -1087,7 +1094,6 @@ function saveSusp(id,isRed){
   const eff = document.getElementById('ms_eff').value;
   if(eff && s && eff!==defaultEffect(s.type, s.triggerDate)) ov.effectDate = eff; else delete ov.effectDate;
   ov.note = document.getElementById('ms_note').value.trim();
-  ov.team = document.getElementById('ms_team').value;
   if(isRed){ ov.committeeDone = document.getElementById('ms_comm').checked; }
   state.overrides[id] = ov;
   save(); closeModal(); renderAll();
