@@ -388,7 +388,9 @@ select.filter:focus{outline:none;border-color:var(--pitch)}
   <!-- ============ CALENDRIER ============ -->
   <section id="view-cal" style="display:none">
     <div class="toolbar">
-      <div class="note" style="flex:1;min-width:220px">Saisissez tous les matchs officiels (championnat, coupe). Chaque suspension se purge sur les matchs suivant sa date d'effet.</div>
+      <select class="filter" id="calTeam" onchange="renderCal()"><option value="">Toutes les équipes</option><option value="A">Équipe 1 (N1)</option><option value="R">Réserve (R1)</option></select>
+      <div class="note" style="flex:1;min-width:200px">Une suspension se purge sur les matchs de l'équipe concernée, à partir de sa date d'effet.</div>
+      <button class="btn primary" onclick="importFFF()">⟳ Importer depuis la FFF</button>
       <button class="btn" onclick="openBulkModal()">📋 Coller une liste</button>
       <button class="btn primary" onclick="openMatchModal()">＋ Match</button>
     </div>
@@ -396,7 +398,7 @@ select.filter:focus{outline:none;border-color:var(--pitch)}
   </section>
 
   <div class="foot">
-    Données partagées en ligne (base commune), avec copie de secours sur cet appareil. · Version du 27/10/2026 (4) Pensez à <b>Exporter</b> régulièrement pour conserver une sauvegarde.<br>
+    Données partagées en ligne (base commune), avec copie de secours sur cet appareil. · Version du 27/10/2026 (5) Pensez à <b>Exporter</b> régulièrement pour conserver une sauvegarde.<br>
     Règles appliquées : 3 jaunes sur 3 matchs différents en 3 mois max → 1 match · Carton rouge → 1 match automatique, puis total fixé par la commission · Commission le jeudi de la semaine qui suit le match · Effet : rouge = lundi suivant le match, cumul de jaunes = lundi suivant la commission.
   </div>
 </div>
@@ -649,7 +651,9 @@ function analyze(){
     const auto = s.type==='rouge' ? SUSP_ROUGE : SUSP_JAUNE;
     s.total = ov.committeeTotal>0 ? ov.committeeTotal : auto + (ov.extra||0);
     s.effectDate = ov.effectDate || defaultEffect(s.type, s.triggerDate);
-    s.matchList = cal.filter(m=>m.date>=s.effectDate).slice(0,s.total);
+    const trig = state.cards.find(c=>c.id===s.cardIds[s.cardIds.length-1]);
+    s.team = ov.team || (trig && trig.team) || 'A';
+    s.matchList = cal.filter(m=>(m.team||'A')===s.team && m.date>=s.effectDate).slice(0,s.total);
     s.missing = s.total - s.matchList.length;
     const last = s.matchList[s.matchList.length-1];
     s.autoServed = s.missing===0 && !!last && last.date < tStr && !(s.type==='rouge' && s.committeePending);
@@ -704,19 +708,23 @@ function renderAll(){
 /* ====================== DASHBOARD ====================== */
 function renderDash(a){
   a = a || analyze();
-  // prochain match
+  // prochain match (chaque équipe)
   const elN = document.getElementById('dashNext');
   if(elN){
-    const nm = nextMatch();
-    const d = document.getElementById('dashNextDesc');
-    if(!nm){ d.textContent=''; elN.innerHTML='<div class="empty">Aucun match à venir. Saisissez le calendrier dans l\'onglet 📅 Calendrier.</div>'; }
-    else{
+    document.getElementById('dashNextDesc').textContent = '';
+    const rows = ['A','R'].map(t=>{
+      const nm = nextMatch(t); if(!nm) return '';
       const out = suspendedFor(a,nm);
-      d.textContent = fmtD(nm.date)+(nm.time?' · '+nm.time:'')+' — '+(nm.venue==='E'?'@ ':'vs ')+nm.opp+(nm.comp?' ('+nm.comp+')':'');
-      elN.innerHTML = out.length
-        ? '<div style="padding-top:10px"><b>Indisponibles (suspension) :</b> '+out.map(x=>`<span class="cardpill ${x.s.type==='rouge'?'r':'y'}"><span class="sq"></span>#${x.p.num} ${esc(x.p.name)}</span>`).join(' ')+'</div>'
-        : '<div class="note" style="padding-top:10px">Aucun joueur suspendu pour ce match.</div>';
-    }
+      return `<tr>
+        <td><b>${TEAMS[t]}</b></td>
+        <td style="white-space:nowrap">${fmtD(nm.date)}${nm.time?' · '+esc(nm.time):''}</td>
+        <td>${nm.venue==='E'?'@ ':'vs '}${esc(nm.opp)} <span class="note">${esc(nm.comp||'')}</span></td>
+        <td>${out.length?out.map(x=>`<span class="cardpill ${x.s.type==='rouge'?'r':'y'}"><span class="sq"></span>#${x.p.num} ${esc(x.p.name)}</span>`).join(' '):'<span class="note">Aucun suspendu</span>'}</td>
+      </tr>`;
+    }).join('');
+    elN.innerHTML = rows
+      ? '<table class="tbl"><thead><tr><th>Équipe</th><th>Date</th><th>Match</th><th>Suspendus</th></tr></thead><tbody>'+rows+'</tbody></table>'
+      : '<div class="empty">Aucun match à venir. Onglet 📅 Calendrier → « Importer depuis la FFF ».</div>';
   }
   // suspensions
   const open = a.suspensions.filter(s=>!s.served)
@@ -923,9 +931,10 @@ function suspendedFor(a,m){
   return a.suspensions.filter(s=>s.matchList.some(x=>x.id===m.id))
     .map(s=>({s,p:playerById(s.playerId)})).filter(x=>x.p);
 }
-function nextMatch(){
+const TEAMS = {A:'Équipe 1', R:'Réserve'};
+function nextMatch(team){
   const t = todayStr();
-  return (state.matches||[]).filter(m=>m.date>=t).sort((x,y)=>parseD(x.date)-parseD(y.date))[0] || null;
+  return (state.matches||[]).filter(m=>m.date>=t && (!team || (m.team||'A')===team)).sort((x,y)=>parseD(x.date)-parseD(y.date))[0] || null;
 }
 
 /* ====================== HELPERS RENDU ====================== */
@@ -976,6 +985,7 @@ function openCardModal(presetPlayer, editId){
         <div class="fld"><label>Date</label><input type="date" id="cf_date" value="${cardForm.date}"></div>
         <div class="fld"><label>Compétition</label><input id="cf_comp" value="${esc(cardForm.comp)}" placeholder="Championnat, Coupe…"></div>
       </div>
+      <div class="fld"><label>Équipe</label><select id="cf_team"><option value="A" ${cardForm.team!=='R'?'selected':''}>Équipe 1 (N1 / Coupe de France)</option><option value="R" ${cardForm.team==='R'?'selected':''}>Réserve (R1 / Coupe de Paris)</option></select></div>
       <div class="fld"><label>Adversaire</label><input id="cf_opp" value="${esc(cardForm.opp)}" placeholder="ex. AS Réserve"></div>
       <div class="fld"><label>Note (facultatif)</label><textarea id="cf_note" placeholder="Faute, contestation…">${esc(cardForm.note)}</textarea></div>
     </div>
@@ -997,6 +1007,7 @@ function saveCard(){
   if(!date){ alert("Indiquez la date du carton."); return; }
   const data = {
     playerId, type:cardForm.type, date,
+    team: document.getElementById('cf_team').value,
     comp: document.getElementById('cf_comp').value.trim(),
     opp: document.getElementById('cf_opp').value.trim(),
     note: document.getElementById('cf_note').value.trim()
@@ -1050,6 +1061,11 @@ function manageSusp(id){
         </div>
       </div>
       <div class="fld">
+        <label>Purge avec l'équipe</label>
+        <select id="ms_team"><option value="A" ${s.team!=='R'?'selected':''}>Équipe 1 (N1 / Coupe de France)</option><option value="R" ${s.team==='R'?'selected':''}>Réserve (R1 / Coupe de Paris)</option></select>
+        <div class="note" style="margin-top:6px">Art. 226 RG : la suspension se purge avec l'équipe où le joueur reprend la compétition.</div>
+      </div>
+      <div class="fld">
         <label>Matchs concernés (calendrier)</label>
         <div>${matchesCell(s)}</div>
       </div>
@@ -1071,6 +1087,7 @@ function saveSusp(id,isRed){
   const eff = document.getElementById('ms_eff').value;
   if(eff && s && eff!==defaultEffect(s.type, s.triggerDate)) ov.effectDate = eff; else delete ov.effectDate;
   ov.note = document.getElementById('ms_note').value.trim();
+  ov.team = document.getElementById('ms_team').value;
   if(isRed){ ov.committeeDone = document.getElementById('ms_comm').checked; }
   state.overrides[id] = ov;
   save(); closeModal(); renderAll();
@@ -1189,17 +1206,20 @@ function setActive(id,val){
 function renderCal(a){
   a = a || analyze();
   const box = document.getElementById('calTable'); if(!box) return;
-  const list = (state.matches||[]).slice().sort((x,y)=>parseD(x.date)-parseD(y.date));
-  if(!list.length){ box.innerHTML = '<div class="empty"><div class="big">Calendrier vide</div>Ajoutez les matchs un par un (＋ Match) ou collez la liste complète (📋).</div>'; return; }
-  const t = todayStr(); let nextTagged = false;
-  box.innerHTML = '<table class="tbl"><thead><tr><th>Date</th><th>Match</th><th>Compétition</th><th>Suspendus</th><th></th></tr></thead><tbody>'+
+  const tf = (document.getElementById('calTeam')||{}).value || '';
+  const list = (state.matches||[]).filter(m=>!tf || (m.team||'A')===tf).sort((x,y)=>parseD(x.date)-parseD(y.date));
+  if(!list.length){ box.innerHTML = '<div class="empty"><div class="big">Calendrier vide</div>Cliquez sur « ⟳ Importer depuis la FFF », ou ajoutez les matchs (＋ Match / 📋).</div>'; return; }
+  const t = todayStr(); const tagged = {};
+  box.innerHTML = '<table class="tbl"><thead><tr><th>Date</th><th>Équipe</th><th>Match</th><th>Compétition</th><th>Suspendus</th><th></th></tr></thead><tbody>'+
     list.map(m=>{
+      const tm = m.team||'A';
       const out = suspendedFor(a,m);
       const past = m.date < t;
       let tag = '';
-      if(!past && !nextTagged){ tag = ' <span class="badge todo">Prochain</span>'; nextTagged = true; }
+      if(!past && !tagged[tm]){ tag = ' <span class="badge todo">Prochain</span>'; tagged[tm] = true; }
       return `<tr style="${past?'opacity:.55':''}">
         <td style="white-space:nowrap">${fmtD(m.date)}${m.time?' · '+esc(m.time):''}</td>
+        <td><span class="badge ${tm==='R'?'ok':'done'}">${TEAMS[tm]}</span></td>
         <td><b>${m.venue==='E'?'@ ':'vs '}${esc(m.opp)}</b>${tag}</td>
         <td style="color:var(--muted)">${esc(m.comp)||'—'}</td>
         <td>${out.length?out.map(x=>`<span class="cardpill ${x.s.type==='rouge'?'r':'y'}"><span class="sq"></span>#${x.p.num} ${esc(x.p.name)}</span>`).join(' '):'<span class="note">—</span>'}</td>
@@ -1211,17 +1231,19 @@ function renderCal(a){
     }).join('')+'</tbody></table>';
 }
 function openMatchModal(id){
-  const m = id ? state.matches.find(x=>x.id===id) : {id:null,date:todayStr(),time:'',opp:'',comp:'National 1',venue:'D'};
+  const tf = (document.getElementById('calTeam')||{}).value || 'A';
+  const m = id ? state.matches.find(x=>x.id===id) : {id:null,date:todayStr(),time:'',opp:'',comp:tf==='R'?'R1':'National 1',venue:'D',team:tf};
   openModal(`
     <div class="modal-h"><h3>${id?'Éditer le match':'Ajouter un match'}</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
+      <div class="fld"><label>Équipe</label><select id="mf_team"><option value="A" ${m.team!=='R'?'selected':''}>Équipe 1 (N1 / Coupe de France)</option><option value="R" ${m.team==='R'?'selected':''}>Réserve (R1 / Coupe de Paris)</option></select></div>
       <div class="row2">
         <div class="fld"><label>Date</label><input type="date" id="mf_date" value="${m.date}"></div>
         <div class="fld"><label>Heure (facultatif)</label><input type="time" id="mf_time" value="${esc(m.time||'')}"></div>
       </div>
       <div class="fld"><label>Adversaire</label><input id="mf_opp" value="${esc(m.opp)}" placeholder="ex. Furiani"></div>
       <div class="row2">
-        <div class="fld"><label>Compétition</label><input id="mf_comp" value="${esc(m.comp)}" placeholder="National 1, Coupe de France…"></div>
+        <div class="fld"><label>Compétition</label><input id="mf_comp" value="${esc(m.comp)}" placeholder="National 1, Coupe de France, R1…"></div>
         <div class="fld"><label>Lieu</label><select id="mf_venue"><option value="D" ${m.venue!=='E'?'selected':''}>Domicile</option><option value="E" ${m.venue==='E'?'selected':''}>Extérieur</option></select></div>
       </div>
     </div>
@@ -1233,6 +1255,7 @@ function openMatchModal(id){
 }
 function saveMatch(id){
   const data = {
+    team: document.getElementById('mf_team').value,
     date: document.getElementById('mf_date').value,
     time: document.getElementById('mf_time').value,
     opp: document.getElementById('mf_opp').value.trim(),
@@ -1245,6 +1268,81 @@ function saveMatch(id){
   else state.matches.push({id:uid(), ...data});
   save(); closeModal(); renderAll();
 }
+
+/* ---- Import du calendrier depuis la FFF (api-dofa.fff.fr) ---- */
+const FFF_CLUB = 667;                       // US Créteil Football
+const FFF_API = 'https://api-dofa.fff.fr/api';
+async function fffGet(url){
+  for(let k=0;k<4;k++){
+    try{ const r = await fetch(url); if(r.ok) return await r.json(); }catch(e){}
+    await new Promise(r=>setTimeout(r,1500*(k+1)));
+  }
+  throw new Error("site FFF injoignable");
+}
+function compLabel(n){
+  n = (n||'').toUpperCase();
+  if(n==='N1') return 'National 1';
+  if(n.includes('COUPE DE FRANCE')) return 'Coupe de France';
+  if(n.includes('COUPE DE PARIS')) return 'Coupe de Paris IDF';
+  if(n==='SENIORS R1') return 'R1';
+  return n.charAt(0)+n.slice(1).toLowerCase();
+}
+function info(html){
+  openModal(`<div class="modal-h"><h3>Information</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b"><div class="note" style="color:var(--txt);font-size:14px">${html}</div></div>
+    <div class="modal-f"><button class="btn primary" onclick="closeModal()">OK</button></div>`);
+}
+async function importFFF(){
+  info('Import du calendrier FFF en cours… (une vingtaine de secondes)');
+  try{
+    const eq = await fffGet(`${FFF_API}/clubs/${FFF_CLUB}/equipes`);
+    const teams = (eq['hydra:member']||[]).filter(e=>e.category_code==='SEM' && (e.code===1 || e.code===2) && !(e.engagements||[]).some(g=>/^U\d/i.test((g.competition||{}).name||'')));   // seniors, hors U20
+    const found = [];
+    for(const e of teams){
+      const team = e.code===1 ? 'A' : 'R';
+      for(const g of (e.engagements||[])){
+        const c = g.competition||{};
+        if(c.type!=='CH' && c.type!=='CP') continue;          // championnat + coupes, pas les amicaux
+        const targets = [[g.phase.number, g.poule.stage_number]];
+        if(c.type==='CP'){                                     // coupes : phases suivantes (ex. phase fédérale)
+          try{
+            const ph = await fffGet(`${FFF_API}/compets/${c.cp_no}/phases`);
+            for(const p of (ph['hydra:member']||[])){
+              if(p.number<=g.phase.number) continue;
+              const po = await fffGet(`${FFF_API}/compets/${c.cp_no}/phases/${p.number}/poules`);
+              for(const q of (po['hydra:member']||[])) targets.push([p.number, q.stage_number]);
+            }
+          }catch(_){}
+        }
+        for(const [ph,gp] of targets){
+          for(let page=1; page<60; page++){
+            const j = await fffGet(`${FFF_API}/compets/${c.cp_no}/phases/${ph}/poules/${gp}/matchs?page=${page}&itemsPerPage=30`);
+            for(const m of (j['hydra:member']||[])){
+              const home = m.home && m.home.club && m.home.club.cl_no===FFF_CLUB && m.home.number===e.number;
+              const away = m.away && m.away.club && m.away.club.cl_no===FFF_CLUB && m.away.number===e.number;
+              if((!home && !away) || !m.date) continue;
+              found.push({ fff:m.ma_no, team, date:m.date.slice(0,10), time:(m.time||'').replace('H',':'),
+                venue: home?'D':'E', opp: ((home?m.away:m.home)||{}).short_name || '?', comp: compLabel(c.name) });
+            }
+            if(!j['hydra:view'] || !j['hydra:view']['hydra:next']) break;
+          }
+        }
+      }
+    }
+    if(!state.matches) state.matches = [];
+    let added = 0, updated = 0;
+    for(const f of found){
+      const m = state.matches.find(x=>x.fff===f.fff)
+             || state.matches.find(x=>!x.fff && (x.team||'A')===f.team && x.date===f.date);
+      if(m){ const before = JSON.stringify(m); Object.assign(m, f); if(JSON.stringify(m)!==before) updated++; }
+      else { state.matches.push({id:uid(), ...f}); added++; }
+    }
+    save(); renderAll();
+    const nA = found.filter(x=>x.team==='A').length, nR = found.filter(x=>x.team==='R').length;
+    info(`Import FFF terminé : <b>${nA}</b> matchs Équipe 1 et <b>${nR}</b> matchs Réserve trouvés.<br>${added} ajoutés, ${updated} mis à jour.<br><br>Relancez l'import après chaque tirage de coupe ou report de match.`);
+  }catch(e){ renderAll(); info("Import FFF impossible : "+esc(e.message)+". Réessayez dans quelques minutes."); }
+}
+
 function deleteMatch(id){
   if(!confirm("Supprimer ce match du calendrier ? Les matchs de suspension seront recalculés.")) return;
   state.matches = state.matches.filter(x=>x.id!==id);
@@ -1254,7 +1352,7 @@ function openBulkModal(){
   openModal(`
     <div class="modal-h"><h3>Coller le calendrier</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
-      <div class="note" style="margin-bottom:10px">Une ligne par match : <b>date ; adversaire ; compétition ; D ou E</b><br>
+      <div class="note" style="margin-bottom:10px">Une ligne par match : <b>date ; adversaire ; compétition ; D ou E ; équipe (1 ou R)</b><br>
       Exemple : <code>08/11/2026 ; Furiani ; National 1 ; D</code><br>
       Le copier-coller depuis Excel (colonnes) fonctionne aussi. Un match déjà présent (même date, même adversaire) est ignoré.</div>
       <div class="fld"><textarea id="bk_txt" style="min-height:220px;font-family:monospace;font-size:13px" placeholder="08/11/2026 ; Furiani ; National 1 ; D"></textarea></div>
@@ -1282,8 +1380,9 @@ function saveBulk(){
     const date = parseDateFR(parts[0]);
     if(!date || !parts[1]){ bad.push(l); continue; }
     const venue = (parts[3]||'D').toUpperCase().startsWith('E') ? 'E' : 'D';
-    if(state.matches.some(x=>x.date===date && (x.opp||'').toLowerCase()===parts[1].toLowerCase())) continue;
-    state.matches.push({id:uid(), date, time:'', opp:parts[1], comp:parts[2]||'', venue});
+    const team = /^(r|res|rés|b|2)/i.test(parts[4]||'') ? 'R' : 'A';
+    if(state.matches.some(x=>x.date===date && (x.team||'A')===team && (x.opp||'').toLowerCase()===parts[1].toLowerCase())) continue;
+    state.matches.push({id:uid(), date, time:'', opp:parts[1], comp:parts[2]||'', venue, team});
     added++;
   }
   save(); closeModal(); renderAll();
